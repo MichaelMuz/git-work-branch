@@ -92,18 +92,19 @@ gws() {
     # explicit arg cannot create so error if they passed it and we can't find it
     test -n "$branch" && { { git branch --list --format='%(refname:short)' "$branch" | wc -l | xargs xargs -I{} test {} -gt 0; } || exit_with "explicit arg passed but branch not found - arg cannot create"; }
 
-    # have fzf let them find or create if no arg was passed
-    branch="{$branch:-$(ranked_branches | fzf --print-query || true)}" # fzf will exit 1 if something chosen or 0 if chosen, either way we get either the match or what the user typed
-
-    # create branch if not exist
-    git show-ref --quiet --verify "$branch" || git branch "$branch" "$(remote_default_branch)"
+    # have fzf let them find or create if no arg was passed, fzf will exit 1 if typed but not chosen so we make it in that case
+    branch="{$branch:-$({ ranked_branches | fzf --print-query; } || { xargs -I{} git branch --quiet {} "$(remote_default_branch)" && cat; })}"
 
     local main_repo_name new_worktree_path
     main_repo_name="$(git worktree list | head -1 | awk '{print $1}' | xargs basename)" # first worktree is always shared checkout
     new_worktree_path="${WORKTREE_HOME}/${main_repo_name}/$(echo "$branch" | sed "s/\//-/")"
 
-    # create worktree if not exist
-    git worktree add "$new_worktree_path" "$branch"
+    {
+        test -e "$new_worktree_path" &&
+            { test "$(git -C "$new_worktree_path" rev-parse --is-inside-work-tree 2>/dev/null)" != "true" && exit_with "$new_worktree_path is not empty!"; } ||
+            { test "$(git -C "$new_worktree_path" branch --show-current)" = "$branch" || exit_with "existing branch $(git -C "$new_worktree_path" branch --show-current) at $new_worktree_path, cannot place $branch "; }
+        # create worktree if not exist, let git complain if that branch is already checked out elsewhere
+    } || git worktree add --quiet "$new_worktree_path" "$branch"
 
     # echo where caller should cd into and return successfully
     echo "$new_worktree_path"
