@@ -1,5 +1,23 @@
 #!/usr/bin/env bash
 
+# Test plan
+#
+# Choosing a branch:
+# 1. If I pass s an arg:
+# - branch doesn't exist: don't create branch and error
+# - branch exists create worktree if not exists and echo dir where it is
+# 2. If I pass no arg:
+# - options should be piped into fzf in order, existing wt by zoxide rank, then recent commit local, then recent commit remote
+# - can type something not in selection for branch creation
+#
+# Creation Mechanics:
+# 1. We can create branches if they don't exist
+# 2. We create worktrees if they don't exist
+# - We error if that dir exists and not git dir
+# - We error if that dir is a git dir but not this git repo
+# - We error if that dir is on a different branch at the moment
+# - We error if that branch is already checked out in a different worktree
+
 set -eou pipefail
 
 exit_with() {

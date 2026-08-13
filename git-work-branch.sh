@@ -102,6 +102,7 @@ gws() {
     {
         test -e "$new_worktree_path" &&
             { test "$(git -C "$new_worktree_path" rev-parse --is-inside-work-tree 2>/dev/null)" != "true" && exit_with "$new_worktree_path is not empty!"; } ||
+            { test "$(git worktree list 2>/dev/null | head -1 | awk '{print $1}')" = "$(git -C "$new_worktree_path" worktree list 2>/dev/null | head -1 | awk '{print $1}')" || exit_with "Foreign repo at $new_worktree_path"; } ||
             { test "$(git -C "$new_worktree_path" branch --show-current)" = "$branch" || exit_with "existing branch $(git -C "$new_worktree_path" branch --show-current) at $new_worktree_path, cannot place $branch "; }
         # create worktree if not exist, let git complain if that branch is already checked out elsewhere
     } || git worktree add --quiet "$new_worktree_path" "$branch"
