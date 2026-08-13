@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -eou pipefail
+
 # A simpler DWIM version of https://worktrunk.dev
 
 # Overarching rule: we only care about branches and worktrees are invisible.
@@ -37,6 +39,12 @@
 #   - will prob not delete branches at first
 #   - teleports to main checkout if deleted your dir
 
+exit_with() {
+    local msg="$1"
+    echo "$msg" >&2
+    exit 1
+}
+
 WORKTREE_HOME=${WORKTREE_HOME:-"~/.worktrees"}
 
 remote_default_branch() {
@@ -47,10 +55,8 @@ remote_default_branch() {
     remote_default="origin/${local_default}"
     {
         test "$(wc -m <<<"${local_default}")" -gt 0 && git branch --list -r "${remote_default}" | wc -m | xargs -I{} test {} -gt 0
-    } || {
-        echo "unable to determine main branch" >&2
-        exit 1
-    }
+    } || exit_with "unable to determine main branch" >&2
+
     echo "$remote_default"
 }
 
@@ -81,16 +87,16 @@ gws() {
     # takes a branch arg, no arg prompts with fzf of all available branches in a worktree
 
     local branch
-    branch="{$1:-$(ranked_branches | fzf --print-query)}" # fzf will exit 1 if something chosen or 0 if chosen, either way we get either the match or what the user typed
+    branch="$1"
 
-    # can never create, just errors
-    branch_exists "$branch" || {
-        echo 'invalid branch' >&2
-        exit 1
-    }
+    # explicit arg cannot create so error if they passed it and we can't find it
+    test -n "$branch" && { { git branch --list --format='%(refname:short)' "$branch" | wc -l | xargs xargs -I{} test {} -gt 0; } || exit_with "explicit arg passed but branch not found - arg cannot create"; }
+
+    # have fzf let them find or create if no arg was passed
+    branch="{$branch:-$(ranked_branches | fzf --print-query || true)}" # fzf will exit 1 if something chosen or 0 if chosen, either way we get either the match or what the user typed
 
     # create branch if not exist
-    branch_exists "$branch" || git branch "$branch" "$(remote_default_branch)"
+    git show-ref --quiet --verify "$branch" || git branch "$branch" "$(remote_default_branch)"
 
     local main_repo_name new_worktree_path
     main_repo_name="$(git worktree list | head -1 | awk '{print $1}' | xargs basename)" # first worktree is always shared checkout
@@ -108,12 +114,9 @@ if [ "$0" = "gws" ]; then
     gws "$@"
     exit 0
 elif [ "$0" = "gwa" ]; then
-    echo "Not implemented yet" >&2
-    exit 1
+    exit_with "Not implemented yet"
 elif [ "$0" = "gwr" ]; then
-    echo "Not implemented yet" >&2
-    exit 1
+    exit_with "Not implemented yet"
 else
-    echo "Unrecognized command" >&2
-    exit 1
+    exit_with "Unrecognized command"
 fi

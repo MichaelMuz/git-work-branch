@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 
+set -eou pipefail
+
 exit_with() {
     local msg="$1"
-    echo msg >&2
+    echo "$msg" >&2
     exit 1
 }
 
