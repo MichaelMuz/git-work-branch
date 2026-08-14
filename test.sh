@@ -2,21 +2,26 @@
 
 # Test plan
 #
-# Choosing a branch:
+# UX:
 # 1. If I pass s an arg:
-# - branch doesn't exist: don't create branch and error
-# - branch exists create worktree if not exists and echo dir where it is
+# a: branch doesn't exist: don't create branch and error
+# b: branch exists create worktree if not exists and echo dir where it is
 # 2. If I pass no arg:
-# - options should be piped into fzf in order, existing wt by zoxide rank, then recent commit local, then recent commit remote
-# - can type something not in selection for branch creation
+# a: options should be piped into fzf in order, existing wt by zoxide rank, then recent commit local, then recent commit remote
+# b: can type something not in selection for branch creation
 #
-# Creation Mechanics:
-# 1. We can create branches if they don't exist
-# 2. We create worktrees if they don't exist
-# - We error if that dir exists and not git dir
-# - We error if that dir is a git dir but not this git repo
-# - We error if that dir is on a different branch at the moment
-# - We error if that branch is already checked out in a different worktree
+# Concrete edgecases:
+# 3. Branch edgecases:
+# a. branch is already worktree
+# b. branch is already local but not worktree
+# c. branch is remote
+# d. branch doesn't exist
+# 4. Worktree edgecases:
+# a. We create worktrees if they don't exist
+# b. We create worktrees if the dir collides with an empty non-git dir
+# c. We error if that dir is a git dir but not this git repo
+# d. We error if that dir is on a different branch at the moment
+# e. We error if that branch is already checked out in a different worktree
 
 set -eou pipefail
 
@@ -36,8 +41,7 @@ _ZO_DATA_DIR=$(mktemp -d)
 # make a fake upstream
 repo1_remote=$(mktemp -d)/repo1_remote
 mkdir -p "$repo1_remote"
-cd "$repo1_remote" || exit_with "could not cd into $repo1_remote"
-git init --bare
+git -C "$repo1_remote" init --bare
 
 # set up the local git
 root_repo1=$(mktemp -d)/repo1
@@ -94,6 +98,17 @@ create_worktree() {
     echo created_wt_dir
 }
 
+(
+    # 1a: try to create a branch new branch with arg
+    expected="explicit arg passed but branch not found - arg cannot create"
+    if ! output="$(create_worktree non-existant-branch 2>&1 1>/dev/null)"; then
+        exit_with "We should refuse to create branch on arg"
+    elif "$output" != "$expected"; then
+        exit_with "Unexpected error message when creating branch on arg: $output"
+    fi
+)
+
+# 1b: Creates worktree from arg using existing branch, should work
 older_but_popular_wt="$(create_worktree old_but_popular_wt_branch)"
 create_worktree new_but_unpopular_wt_branch >/dev/null
 
@@ -108,16 +123,16 @@ cd "$root_repo1" || exit_with "could not cd into $root_repo1"
 fzf_out=$(mktmp)/fzf_out.txt
 touch "$fzf_out"
 
-fzf() {
-    # output whatever they passed to fzf into our file, ignore any args, and exit their program
+fzf_chooses_new_but_unpopular_wt_branch() {
     cat >"$fzf_out"
-    exit
+    fzf "$@" --filter new_but_unpopular_wt_branch
 }
 
-export -f fzf
-./git-work-branch.sh s
+export -f fzf=fzf_chooses_new_but_unpopular_wt_branch
+test "$(./git-work-branch.sh s)" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/new_but_unpopular_wt_branch
 unexport -f fzf
 
+# 2a: correct order piped into fzf
 diff -q "$fzf_out" <<EOF || exit_with "diff dumped"
 older_but_popular_wt_branch
 newer_but_unpopular_wt_branch
@@ -127,3 +142,128 @@ my_older_branch
 newer_remote_branch
 old_remote_branch
 EOF
+
+# 3a: branch is already worktree
+fzf_chooses_newer_but_unpopular_wt_branch() {
+    cat >"$fzf_out"
+    fzf "$@" --filter fzf_chooses_newer_but_unpopular_wt_branch
+}
+
+export -f fzf=fzf_chooses_newer_but_unpopular_wt_branch
+to_cd="$(./git-work-branch.sh s)"
+test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/fzf_chooses_newer_but_unpopular_wt_branch
+test "$(git -C "$to_cd" branch --show-current)" = fzf_chooses_newer_but_unpopular_wt_branch
+unexport -f fzf
+
+# 3b: branch is local but not worktree
+fzf_chooses_my_recentish() {
+    cat >"$fzf_out"
+    fzf "$@" --filter my_recentish_branch
+}
+
+export -f fzf=fzf_chooses_my_recentish
+to_cd="$(./git-work-branch.sh s)"
+test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/my_recentish_branch
+test "$(git -C "$to_cd" branch --show-current)" = my_recentish_branch
+unexport -f fzf
+
+# 3c: branch is remote
+fzf_chooses_old_remote_branch() {
+    cat >"$fzf_out"
+    fzf "$@" --filter old_remote_branch
+}
+
+# 2b: can type in a branch that never existed and it gets created along with the worktree it needs
+export -f fzf=fzf_chooses_old_remote_branch
+to_cd="$(./git-work-branch.sh s)"
+test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/old_remote_branch
+test "$(git -C "$to_cd" branch --show-current)" = old_remote_branch
+unexport -f fzf
+
+# 2b+3d: branch doesn't exist but we type it into fzf and it gets made along with its worktree
+fzf_chooses_new() {
+    cat >"$fzf_out"
+    fzf "$@" --filter brand_new_branch
+}
+
+export -f fzf=fzf_chooses_new
+to_cd="$(./git-work-branch.sh s)"
+test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/brand_new_branch
+test "$(git -C "$to_cd" branch --show-current)" = brand_new_branch
+unexport -f fzf
+
+# 4a has already been demonstrated many times above bc if a branch didn't exist locallly then the worktree def didn't
+
+# 4b: ok to make worktree on existing dir if empty
+existing_but_empty="$WORKTREE_HOME"/"$expected_repo1_worktree_home"/existing_but_empty
+mkdir -p "$existing_but_empty"
+fzf_chooses_existing_but_empty() {
+    cat >"$fzf_out"
+    fzf "$@" --filter existing_but_empty
+}
+
+export -f fzf=fzf_chooses_existing_but_empty
+to_cd="$(./git-work-branch.sh s)"
+test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/existing_but_empty
+test "$(git -C "$to_cd" branch --show-current)" = existing_but_empty
+unexport -f fzf
+
+# 4b: errors if we try to make worktree in occupied non-git dir
+existing_but_occupied="$WORKTREE_HOME"/"$expected_repo1_worktree_home"/existing_but_empty
+mkdir -p "$existing_but_occupied"
+touch "$existing_but_occupied/some_file.txt"
+fzf_chooses_existing_but_occupied() {
+    cat >"$fzf_out"
+    fzf "$@" --filter existing_but_occupied
+}
+
+export -f fzf=fzf_chooses_existing_but_occupied
+if out="$(./git-work-branch.sh s 2>&1)"; then
+    exit_with "expected to fail on attempt to create worktree in occupied dir"
+elif [ "$out" == "$existing_but_occupied is not empty!" ]; then
+    echo "got unexpected failure message :$out: when attempting to create in occupied dir"
+fi
+unexport -f fzf
+
+# 4c: error if dir has git but from a different repo
+existing_but_occupied_git_dir="$WORKTREE_HOME"/"$expected_repo1_worktree_home"/existing_but_empty
+mkdir -p "$existing_but_occupied_git_dir"
+touch "$existing_but_occupied_git_dir/some_file.txt"
+fzf_chooses_existing_but_occupied_git_dir() {
+    cat >"$fzf_out"
+    fzf "$@" --filter existing_but_occupied_git_dir
+}
+
+export -f fzf=fzf_chooses_existing_but_occupied_git_dir
+if out="$(./git-work-branch.sh s 2>&1)"; then
+    exit_with "expected to fail on attempt to create worktree in foreign repo"
+elif [ "$out" == "Foreign repo at $existing_but_occupied_git_dir" ]; then
+    echo "got unexpected failure message :$out: when attempting to create in occupied dir"
+fi
+unexport -f fzf
+
+# 4d: errors if we try to make worktree in a dir that has a different branch from our repo in it - like if a user manually messed with branch in a worktree
+invaded_wt_dir="$WORKTREE_HOME"/"$expected_repo1_worktree_home"/branch_that_belongs
+mkdir -p "$invaded_wt_dir"
+git branch invader_branch
+git worktree add --quiet "$invaded_wt_dir" invader_branch
+
+fzf_chooses_branch_that_belongs() {
+    cat >"$fzf_out"
+    fzf "$@" --filter branch_that_belongs
+}
+
+export -f fzf=fzf_chooses_branch_that_belongs
+if out="$(./git-work-branch.sh s 2>&1)"; then
+    exit_with "expected to fail on attempt to create worktree in dir that has a different branch checked out already"
+elif [ "$out" == "existing branch invader_branch at $invaded_wt_dir cannot place branch_that_belongs" ]; then
+    echo "got unexpected failure message :$out: when attempting to create in occupied dir"
+fi
+unexport -f fzf
+
+# 4e: try to check out a branch that is already checked out in a different worktree
+if out="$(./git-work-branch.sh s invader_branch 2>&1)"; then
+    exit_with "expected to fail on attempt to create worktree with branch checked out in another worktree"
+elif [ "$out" == "fatal: 'both-zsh' is already used by worktree at \'$invaded_wt_dir\'" ]; then
+    echo "got unexpected failure message :$out: when attempting to create in occupied dir"
+fi
