@@ -23,7 +23,7 @@
 # d. We error if that dir is on a different branch at the moment
 # e. We error if that branch is already checked out in a different worktree
 
-set -eou pipefail
+set -eoux pipefail
 
 exit_with() {
     local msg="$1"
@@ -50,10 +50,10 @@ cd "$root_repo1" || exit_with "could not cd into $repo1_remote"
 echo "this is code" >fakecode.txt
 git init
 git branch -M main
-git add remote add origin "$(repo1_remote)"
+git remote add origin "$repo1_remote"
 git add fakecode.txt
 git commit -m "first commit"
-git push -u origin/main
+git push -u origin
 
 create_branch() {
     local name="$1"
