@@ -23,12 +23,25 @@
 # d. We error if that dir is on a different branch at the moment
 # e. We error if that branch is already checked out in a different worktree
 
-set -eoux pipefail
+set -eou pipefail
+
+# for debugging
+set -x
+PS4='+${LINENO}: '
 
 exit_with() {
     local msg="$1"
     echo "$msg" >&2
     exit 1
+}
+
+git_work_branch_script_dir="$(dirname "$(realpath "$0")")"
+
+git_work_branch() {
+    (
+        cd "$git_work_branch_script_dir"
+        ./git-work-branch.sh "$@"
+    )
 }
 
 # set fake env vars for a clean slate
@@ -61,7 +74,8 @@ create_branch() {
     echo "$name" >"$name".txt
     git add "$name".txt
     git commit -m "adding $name"
-    git push -u origin/"$name"
+    git push -u origin
+    git checkout main
 }
 
 # simulate an old remote only branch
@@ -79,10 +93,9 @@ create_branch my_older_branch
 create_branch my_recentish_branch
 
 # recent local branch
-create_branch my_recentish_branch
+create_branch my_recent_branch
 
 expected_repo1_worktree_home="$WORKTREE_HOME"/repo1_remote
-git checkout main
 
 create_worktree() {
     # makes worktree by passing our tool s <branch>, assumes using repo1
@@ -90,7 +103,7 @@ create_worktree() {
     local branch_name expected_wt_dir created_wt_dir actual_branch
     branch_name="$1"
     expected_wt_dir="$expected_repo1_worktree_home"/"$branch_name"
-    created_wt_dir=$(./git-work-branch.sh s "$branch_name")
+    created_wt_dir=$(git_work_branch s "$branch_name")
     test "$created_wt_dir" = "$expected_wt_dir" || exit_with "expected created wt at $expected_wt_dir but got $created_wt_dir"
     cd "$created_wt_dir" || exit_with "could not move to created first worktree dir" # as the tool wants us to do
     actual_branch="$(branch --show-current)"
@@ -101,7 +114,7 @@ create_worktree() {
 (
     # 1a: try to create a branch new branch with arg
     expected="explicit arg passed but branch not found - arg cannot create"
-    if ! output="$(create_worktree non-existant-branch 2>&1 1>/dev/null)"; then
+    if output="$(create_worktree non-existant-branch 2>&1 1>/dev/null)"; then
         exit_with "We should refuse to create branch on arg"
     elif "$output" != "$expected"; then
         exit_with "Unexpected error message when creating branch on arg: $output"
