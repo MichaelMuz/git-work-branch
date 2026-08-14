@@ -93,7 +93,7 @@ gws() {
     test -n "$branch" && { { git branch --list --format='%(refname:short)' "$branch" | wc -l | xargs xargs -I{} test {} -gt 0; } || exit_with "explicit arg passed but branch not found - arg cannot create"; }
 
     # have fzf let them find or create if no arg was passed, fzf will exit 1 if typed but not chosen so we make it in that case
-    branch="{$branch:-$({ ranked_branches | fzf --print-query; } || { xargs -I{} git branch --quiet {} "$(remote_default_branch)" && cat; })}"
+    branch="{$branch:-$({ ranked_branches | fzf --print-query; } || { sed "s/^origin\//" | xargs -I{} git branch --quiet {} "$(remote_default_branch) -u origin/$(remote_default_branch) " && cat; })}"
 
     local main_repo_name new_worktree_path
     main_repo_name="$(git worktree list | head -1 | awk '{print $1}' | xargs basename)" # first worktree is always shared checkout
