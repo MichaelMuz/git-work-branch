@@ -2,6 +2,10 @@
 
 set -eou pipefail
 
+# for debugging
+set -x
+PS4='S${LINENO}: '
+
 # A simpler DWIM version of https://worktrunk.dev
 
 # Overarching rule: we only care about branches and worktrees are invisible.
@@ -112,12 +116,12 @@ gws() {
 }
 
 # this script technically takes the arg s, a, or r. Expect to be aliased as gws for convenience
-if [ "$0" = "gws" ]; then
+if [ "$1" = "s" ]; then
     gws "$@"
     exit 0
-elif [ "$0" = "gwa" ]; then
+elif [ "$1" = "a" ]; then
     exit_with "Not implemented yet"
-elif [ "$0" = "gwr" ]; then
+elif [ "$1" = "r" ]; then
     exit_with "Not implemented yet"
 else
     exit_with "Unrecognized command"

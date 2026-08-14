@@ -27,7 +27,7 @@ set -eou pipefail
 
 # for debugging
 set -x
-PS4='+${LINENO}: '
+PS4='T${LINENO}: '
 
 exit_with() {
     local msg="$1"
@@ -35,6 +35,7 @@ exit_with() {
     exit 1
 }
 
+# we expect the script we are testing to be a sibling in the same dir as us
 git_work_branch_script_dir="$(dirname "$(realpath "$0")")"
 
 git_work_branch() {
