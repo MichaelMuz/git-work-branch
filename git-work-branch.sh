@@ -55,8 +55,6 @@ dbg() {
     test -n dbgfile && echo "$1" >>"$dbgfile" 2>&1
 }
 
-dbg "_ZO_DATA_DIR: $_ZO_DATA_DIR"
-
 WORKTREE_HOME=${WORKTREE_HOME:-"~/.worktrees"}
 
 remote_default_branch() {
@@ -73,7 +71,6 @@ remote_default_branch() {
 }
 
 ranked_branches() {
-    dbg "Ranking now"
     # get the branches of this repo in the order we should display them to the user
 
     local highest_ranked_wts other_wts ordered_wt_branches local_branches remote_branches ordered_branches
@@ -118,6 +115,7 @@ gws() {
 
     local branch
     branch="$1"
+    dbg "will gws with $branch"
 
     # explicit arg cannot create so error if they passed it and we can't find it
     test -n "$branch" && { { git branch --list --format='%(refname:short)' "$branch" | wc -l | xargs xargs -I{} test {} -gt 0; } || exit_with "explicit arg passed but branch not found - arg cannot create"; }
