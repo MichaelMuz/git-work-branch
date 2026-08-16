@@ -26,8 +26,8 @@
 set -eou pipefail
 
 # for debugging
-# set -x
-# PS4='T${LINENO}: '
+set -x
+PS4='T${LINENO}: '
 
 exit_with() {
     local msg="$1"
@@ -45,6 +45,11 @@ cd() {
 # we expect the script we are testing to be a sibling in the same dir as us
 git_work_branch_script_dir="$(dirname "$(realpath "$0")")"
 export dbgfile="$git_work_branch_script_dir/dbg.txt"
+echo -n "" >"$dbgfile"
+
+dbg() {
+    echo "$1" >>"$dbgfile" 2>&1
+}
 
 git_work_branch() {
     (
@@ -79,6 +84,8 @@ git push -u origin
 
 create_branch() {
     local name="$1"
+    dbg "create branch with $name"
+
     git checkout -b "$name"
     echo "$name" >"$name".txt
     git add "$name".txt
@@ -111,6 +118,8 @@ create_worktree() {
 
     local branch_name expected_wt_dir created_wt_dir actual_branch
     branch_name="$1"
+    dbg "create worktree with $branch_name"
+
     expected_wt_dir="$expected_repo1_worktree_home"/"$branch_name"
     created_wt_dir=$(git_work_branch s "$branch_name")
     test "$created_wt_dir" = "$expected_wt_dir" || exit_with "expected created wt at $expected_wt_dir but got $created_wt_dir"
