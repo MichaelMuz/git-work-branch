@@ -49,6 +49,12 @@ exit_with() {
     exit 1
 }
 
+# set this in calling process to get a debug file
+dbgfile="{dbgfile:-""}"
+dbg() {
+    test -n dbgfile && echo "$1" >"$dbgfile" 2>&1
+}
+
 WORKTREE_HOME=${WORKTREE_HOME:-"~/.worktrees"}
 
 remote_default_branch() {
@@ -65,24 +71,42 @@ remote_default_branch() {
 }
 
 ranked_branches() {
+    dbg "Ranking now"
     # get the branches of this repo in the order we should display them to the user
 
     local highest_ranked_wts other_wts ordered_wt_branches local_branches remote_branches ordered_branches
 
     # get highest ranked zoxide dirs that are also this repos worktrees
-    highest_ranked_wts=zoxide query -l | grep -E "$(git worktree list | awk '{print $1}' | xargs | sed 's/ /|/')"
+    highest_ranked_wts="$(zoxide query -l | grep -E "$(git worktree list | awk '{print $1}' | xargs | sed 's/ /|/')")"
+    dbg "highest_ranked_wts::"
+    dbg "$highest_ranked_wts"
+    dbg "worktrees:"
+    dbg "$(git worktree list)"
+    dbg "zoxide query -l:"
+    dbg "$(zoxide query -l)"
+
     # get other worktree dirs
     other_wts=git worktree list | awk '{print $1}' | grep -Ev "$(echo "$highest_ranked_wts" | xargs | sed 's/ /|/')"
+    dbg "other_wts"
+    dbg "$other_wts"
 
     ordered_wt_branches=$(printf "%s\n%s" "${highest_ranked_wts}" "${other_wts}" | xargs -I{} git -C {} branch --show-current)
+    dbg "ordered_wt_branches"
+    dbg "$ordered_wt_branches"
 
     # get branches from repo sorted by name and committerdate (last sort wins so date is most important)
     local_branches="$(git for-each-ref --sort='refname:short' --sort '-committerdate' --format='%(refname:short)' refs/heads)"
+    dbg "local_branches"
+    dbg "$local_branches"
     # sort remote the same but dedup against local branches
     remote_branches="$(git for-each-ref --sort='refname:short' --sort '-committerdate' --format='%(refname:short)' refs/remotes | grep -v "$(echo "$local_branches" | xargs | sed 's/ /|/')")"
+    dbg "remote_branches"
+    dbg "$remote_branches"
 
     # merge all branches we want to display to the user
     ordered_branches="$(printf "%s\n%s" "$ordered_wt_branches" "$remote_branches")"
+    dbg "ordered_branches"
+    dbg "$ordered_branches"
     echo "$ordered_branches"
 
 }
@@ -97,7 +121,7 @@ gws() {
     test -n "$branch" && { { git branch --list --format='%(refname:short)' "$branch" | wc -l | xargs xargs -I{} test {} -gt 0; } || exit_with "explicit arg passed but branch not found - arg cannot create"; }
 
     # have fzf let them find or create if no arg was passed, fzf will exit 1 if typed but not chosen so we make it in that case
-    branch="{$branch:-$({ ranked_branches | fzf --print-query; } || { sed "s/^origin\//" | xargs -I{} git branch --quiet {} "$(remote_default_branch) -u origin/$(remote_default_branch) " && cat; })}"
+    branch="{$branch:-$({ ranked_branches | fzf --print-query; } || { sed "s/^origin\///" | xargs -I{} git branch --quiet {} "$(remote_default_branch) -u origin/$(remote_default_branch) " && cat; })}"
 
     local main_repo_name new_worktree_path
     main_repo_name="$(git worktree list | head -1 | awk '{print $1}' | xargs basename)" # first worktree is always shared checkout

@@ -26,8 +26,8 @@
 set -eou pipefail
 
 # for debugging
-set -x
-PS4='T${LINENO}: '
+# set -x
+# PS4='T${LINENO}: '
 
 exit_with() {
     local msg="$1"
@@ -35,8 +35,16 @@ exit_with() {
     exit 1
 }
 
+cd() {
+    # shadows cd, a real config would have zoxide hook plugged into the shell directly
+
+    builtin cd "$@"
+    zoxide add -- "$(pwd)"
+}
+
 # we expect the script we are testing to be a sibling in the same dir as us
 git_work_branch_script_dir="$(dirname "$(realpath "$0")")"
+export dbgfile="$git_work_branch_script_dir/dbg.txt"
 
 git_work_branch() {
     (
