@@ -141,7 +141,7 @@ gws() {
 
 # this script technically takes the arg s, a, or r. Expect to be aliased as gws for convenience
 if [ "$1" = "s" ]; then
-    gws "$@"
+    gws "$2"
     exit 0
 elif [ "$1" = "a" ]; then
     exit_with "Not implemented yet"
