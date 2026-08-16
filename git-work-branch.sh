@@ -55,6 +55,8 @@ dbg() {
     test -n dbgfile && echo "$1" >>"$dbgfile" 2>&1
 }
 
+dbg "_ZO_DATA_DIR: $_ZO_DATA_DIR"
+
 WORKTREE_HOME=${WORKTREE_HOME:-"~/.worktrees"}
 
 remote_default_branch() {

@@ -52,10 +52,8 @@ dbg() {
 }
 
 git_work_branch() {
-    (
-        cd "$git_work_branch_script_dir"
-        ./git-work-branch.sh "$@"
-    )
+    "$git_work_branch_script_dir"/git-work-branch.sh "$@"
+
 }
 
 # set fake env vars for a clean slate
