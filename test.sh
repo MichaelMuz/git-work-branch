@@ -26,8 +26,8 @@
 set -eou pipefail
 
 # for debugging
-set -x
-PS4='T${LINENO}: '
+# set -x
+# PS4='T${LINENO}: '
 
 exit_with() {
     local msg="$1"
@@ -66,30 +66,30 @@ _ZO_DATA_DIR=$(mktemp -d)
 # make a fake upstream
 repo1_remote=$(mktemp -d)/repo1_remote
 mkdir -p "$repo1_remote"
-git -C "$repo1_remote" init --bare
+git -C "$repo1_remote" init --bare --quiet
 
 # set up the local git
 root_repo1=$(mktemp -d)/repo1
 mkdir -p "$root_repo1"
 cd "$root_repo1" || exit_with "could not cd into $repo1_remote"
 echo "this is code" >fakecode.txt
-git init
-git branch -M main
+git init --quiet
+git branch -M main --quiet
 git remote add origin "$repo1_remote"
 git add fakecode.txt
-git commit -m "first commit"
-git push -u origin
+git commit -m "first commit" --quiet
+git push -u origin --quiet
 
 create_branch() {
     local name="$1"
     dbg "create branch with $name"
 
-    git checkout -b "$name"
+    git checkout -b "$name" --quiet
     echo "$name" >"$name".txt
     git add "$name".txt
-    git commit -m "adding $name"
-    git push -u origin
-    git checkout main
+    git commit -m "adding $name" --quiet
+    git push -u origin --quiet
+    git checkout main --quiet
 }
 
 # simulate an old remote only branch

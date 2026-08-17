@@ -3,8 +3,8 @@
 set -eou pipefail
 
 # for debugging
-set -x
-PS4='S${LINENO}: '
+# set -x
+# PS4='S${LINENO}: '
 
 # A simpler DWIM version of https://worktrunk.dev
 
@@ -79,10 +79,10 @@ ranked_branches() {
     highest_ranked_wts="$(zoxide query -l | grep -E "$(git worktree list | awk '{print $1}' | xargs | sed 's/ /|/')")"
     dbg "highest_ranked_wts:"
     dbg "$highest_ranked_wts"
-    dbg "worktrees:"
-    dbg "$(git worktree list)"
-    dbg "zoxide query -l:"
-    dbg "$(zoxide query -l)"
+    # dbg "worktrees:"
+    # dbg "$(git worktree list)"
+    # dbg "zoxide query -l:"
+    # dbg "$(zoxide query -l)"
 
     # get other worktree dirs
     other_wts=git worktree list | awk '{print $1}' | grep -Ev "$(echo "$highest_ranked_wts" | xargs | sed 's/ /|/')"
@@ -117,8 +117,10 @@ gws() {
     branch="$1"
     dbg "will gws with $branch"
 
+    dbg "did we find branch?: $(git branch --list --format='%(refname:short)' "$branch")"
+
     # explicit arg cannot create so error if they passed it and we can't find it
-    test -n "$branch" && { { git branch --list --format='%(refname:short)' "$branch" | wc -l | xargs xargs -I{} test {} -gt 0; } || exit_with "explicit arg passed but branch not found - arg cannot create"; }
+    test -n "$branch" && { { git branch --list --format='%(refname:short)' "$branch" | wc -l | xargs -I{} test {} -gt 0; } || exit_with "explicit arg passed but branch not found - arg cannot create"; }
 
     # have fzf let them find or create if no arg was passed, fzf will exit 1 if typed but not chosen so we make it in that case
     branch="{$branch:-$({ ranked_branches | fzf --print-query; } || { sed "s/^origin\///" | xargs -I{} git branch --quiet {} "$(remote_default_branch) -u origin/$(remote_default_branch) " && cat; })}"
