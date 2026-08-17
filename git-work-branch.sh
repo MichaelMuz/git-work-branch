@@ -117,10 +117,10 @@ gws() {
     branch="$1"
     dbg "will gws with $branch"
 
-    dbg "did we find branch?: $(git branch --list --format='%(refname:short)' "$branch")"
-
     # explicit arg cannot create so error if they passed it and we can't find it
-    test -n "$branch" && { { git branch --list --format='%(refname:short)' "$branch" | wc -l | xargs -I{} test {} -gt 0; } || exit_with "explicit arg passed but branch not found - arg cannot create"; }
+    dbg "branches to check if branch $branch exists: $(git branch --list -a --format='%(refname:short)')"
+    test -n "$branch" && { { git branch --list -a --format='%(refname:short)' "$branch" "origin/$branch" | wc -l | xargs -I{} test {} -gt 0; } || exit_with "explicit arg passed but branch not found - arg cannot create"; }
+    dbg "either not passed or already existed"
 
     # have fzf let them find or create if no arg was passed, fzf will exit 1 if typed but not chosen so we make it in that case
     branch="{$branch:-$({ ranked_branches | fzf --print-query; } || { sed "s/^origin\///" | xargs -I{} git branch --quiet {} "$(remote_default_branch) -u origin/$(remote_default_branch) " && cat; })}"

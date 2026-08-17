@@ -92,13 +92,17 @@ create_branch() {
     git checkout main --quiet
 }
 
+# create branches we will make into worktrees and manipulate their zoxide popularity to test sorting
+create_branch old_but_popular_wt_branch
+create_branch new_but_unpopular_wt_branch
+
 # simulate an old remote only branch
 create_branch old_remote_branch
-git branch -d old_remote_branch
+git branch -d old_remote_branch --quiet 2>/dev/null # warns bc branch pointed to commit that was not merged to main, but -d deletes bc in origin refs
 
 # simulate a newer remote only branch
 create_branch newer_remote_branch
-git branch -d newer_remote_branch
+git branch -d newer_remote_branch --quiet 2>/dev/null # warns bc branch pointed to commit that was not merged to main, but -d deletes bc in origin refs
 
 # older local branch
 create_branch my_older_branch
