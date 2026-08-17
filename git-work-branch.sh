@@ -85,7 +85,7 @@ ranked_branches() {
     # dbg "$(zoxide query -l)"
 
     # get other worktree dirs
-    other_wts=git worktree list | awk '{print $1}' | grep -Ev "$(echo "$highest_ranked_wts" | xargs | sed 's/ /|/')"
+    other_wts="$(git worktree list | awk '{print $1}' | grep -Ev "$(echo "$highest_ranked_wts" | xargs | sed 's/ /|/')")"
     dbg "other_wts:"
     dbg "$other_wts"
 
@@ -118,7 +118,6 @@ gws() {
     dbg "will gws with $branch"
 
     # explicit arg cannot create so error if they passed it and we can't find it
-    dbg "branches to check if branch $branch exists: $(git branch --list -a --format='%(refname:short)')"
     test -n "$branch" && { { git branch --list -a --format='%(refname:short)' "$branch" "origin/$branch" | wc -l | xargs -I{} test {} -gt 0; } || exit_with "explicit arg passed but branch not found - arg cannot create"; }
     dbg "either not passed or already existed"
 

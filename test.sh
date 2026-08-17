@@ -131,15 +131,12 @@ create_worktree() {
     echo created_wt_dir
 }
 
-(
-    # 1a: try to create a branch new branch with arg
-    expected="explicit arg passed but branch not found - arg cannot create"
-    if output="$(create_worktree non-existant-branch 2>&1 1>/dev/null)"; then
-        exit_with "We should refuse to create branch on arg"
-    elif "$output" != "$expected"; then
-        exit_with "Unexpected error message when creating branch on arg: $output"
-    fi
-)
+# 1a: try to create a branch new branch with arg
+if output="$(create_worktree non-existant-branch 2>&1 1>/dev/null)"; then
+    exit_with "We should refuse to create branch on arg"
+elif [ "$output" != "explicit arg passed but branch not found - arg cannot create" ]; then
+    exit_with "Unexpected error message when creating branch on arg: $output"
+fi
 
 # 1b: Creates worktree from arg using existing branch, should work
 older_but_popular_wt="$(create_worktree old_but_popular_wt_branch)"
