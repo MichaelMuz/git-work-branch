@@ -180,7 +180,7 @@ with_mock_fzf_filter() {
 }
 
 # 2a: correct order piped into fzf
-test "$(with_mock_fzf_filter new_but_unpopular_wt_branch)" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/new_but_unpopular_wt_branch
+test "$(with_mock_fzf_filter new_but_unpopular_wt_branch)" = "$expected_repo1_worktree_home"/new_but_unpopular_wt_branch
 diff -q "$fzf_out" <<EOF || exit_with "diff dumped"
 older_but_popular_wt_branch
 newer_but_unpopular_wt_branch
@@ -193,7 +193,7 @@ EOF
 
 # 3a: branch is already worktree
 to_cd="$(with_mock_fzf_filter fzf_chooses_newer_but_unpopular_wt_branch)"
-test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/fzf_chooses_newer_but_unpopular_wt_branch
+test "$to_cd" = "$expected_repo1_worktree_home"/fzf_chooses_newer_but_unpopular_wt_branch
 test "$(git -C "$to_cd" branch --show-current)" = fzf_chooses_newer_but_unpopular_wt_branch
 
 # 3b: branch is local but not worktree
@@ -203,33 +203,33 @@ fzf_chooses_my_recentish() {
 }
 
 to_cd="$(with_mock_fzf_filter my_recentish_branch)"
-test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/my_recentish_branch
+test "$to_cd" = "$expected_repo1_worktree_home"/my_recentish_branch
 test "$(git -C "$to_cd" branch --show-current)" = my_recentish_branch
 
 # 3c: branch is remote
 # 2b: can type in a branch that never existed and it gets created along with the worktree it needs
 to_cd="$(with_mock_fzf_filter old_remote_branch)"
 to_cd="$(./git-work-branch.sh s)"
-test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/old_remote_branch
+test "$to_cd" = "$expected_repo1_worktree_home"/old_remote_branch
 test "$(git -C "$to_cd" branch --show-current)" = old_remote_branch
 
 # 2b+3d: branch doesn't exist but we type it into fzf and it gets made along with its worktree
 to_cd="$(with_mock_fzf_filter brand_new_branch)"
-test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/brand_new_branch
+test "$to_cd" = "$expected_repo1_worktree_home"/brand_new_branch
 test "$(git -C "$to_cd" branch --show-current)" = brand_new_branch
 
 # 4a has already been demonstrated many times above bc if a branch didn't exist locallly then the worktree def didn't
 
 # 4b: ok to make worktree on existing dir if empty
-existing_but_empty="$WORKTREE_HOME"/"$expected_repo1_worktree_home"/existing_but_empty
+existing_but_empty="$expected_repo1_worktree_home"/existing_but_empty
 mkdir -p "$existing_but_empty"
 to_cd="$(with_mock_fzf_filter existing_but_empty)"
-test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/existing_but_empty
+test "$to_cd" = "$expected_repo1_worktree_home"/existing_but_empty
 test "$(git -C "$to_cd" branch --show-current)" = existing_but_empty
 unexport -f fzf
 
 # 4b: errors if we try to make worktree in occupied non-git dir
-existing_but_occupied="$WORKTREE_HOME"/"$expected_repo1_worktree_home"/existing_but_occupied
+existing_but_occupied="$expected_repo1_worktree_home"/existing_but_occupied
 mkdir -p "$existing_but_occupied"
 touch "$existing_but_occupied/some_file.txt"
 if out="$(with_mock_fzf_filter existing_but_occupied)"; then
@@ -239,7 +239,7 @@ elif [ "$out" == "$existing_but_occupied is not empty!" ]; then
 fi
 
 # 4c: error if dir has git but from a different repo
-existing_but_occupied_git_dir="$WORKTREE_HOME"/"$expected_repo1_worktree_home"/existing_but_empty
+existing_but_occupied_git_dir="$expected_repo1_worktree_home"/existing_but_empty
 mkdir -p "$existing_but_occupied_git_dir"
 touch "$existing_but_occupied_git_dir/some_file.txt"
 if out="$(with_mock_fzf_filter existing_but_occupied 2>&1)"; then
@@ -249,7 +249,7 @@ elif [ "$out" == "Foreign repo at $existing_but_occupied_git_dir" ]; then
 fi
 
 # 4d: errors if we try to make worktree in a dir that has a different branch from our repo in it - like if a user manually messed with branch in a worktree
-invaded_wt_dir="$WORKTREE_HOME"/"$expected_repo1_worktree_home"/branch_that_belongs
+invaded_wt_dir="$expected_repo1_worktree_home"/branch_that_belongs
 mkdir -p "$invaded_wt_dir"
 git branch invader_branch
 git worktree add --quiet "$invaded_wt_dir" invader_branch
