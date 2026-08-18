@@ -79,31 +79,27 @@ ranked_branches() {
     highest_ranked_wts="$(zoxide query -l | grep -E "$(git worktree list | awk '{print $1}' | xargs | sed 's/ /|/')")"
     dbg "highest_ranked_wts:"
     dbg "$highest_ranked_wts"
-    # dbg "worktrees:"
-    # dbg "$(git worktree list)"
-    # dbg "zoxide query -l:"
-    # dbg "$(zoxide query -l)"
 
     # get other worktree dirs
     other_wts="$(git worktree list | awk '{print $1}' | grep -Ev "$(echo "$highest_ranked_wts" | xargs | sed 's/ /|/')")"
     dbg "other_wts:"
     dbg "$other_wts"
 
-    ordered_wt_branches=$(printf "%s\n%s" "${highest_ranked_wts}" "${other_wts}" | xargs -I{} git -C {} branch --show-current)
+    ordered_wt_branches=$(printf "%s\n%s\n" "${highest_ranked_wts}" "${other_wts}" | xargs -I{} git -C {} branch --show-current)
     dbg "ordered_wt_branches:"
     dbg "$ordered_wt_branches"
 
     # get branches from repo sorted by name and committerdate (last sort wins so date is most important)
-    local_branches="$(git for-each-ref --sort='refname:short' --sort '-committerdate' --format='%(refname:short)' refs/heads)"
+    local_branches="$(git for-each-ref --sort='refname:short' --sort '-committerdate' --format='%(refname:short)' refs/heads | grep -v "$ordered_wt_branches")"
     dbg "local_branches:"
     dbg "$local_branches"
     # sort remote the same but dedup against local branches
-    remote_branches="$(git for-each-ref --sort='refname:short' --sort '-committerdate' --format='%(refname:short)' refs/remotes | grep -v "$(echo "$local_branches" | xargs | sed 's/ /|/')")"
+    remote_branches="$(git for-each-ref --sort='refname:short' --sort '-committerdate' --format='%(refname)' refs/remotes | sed 's|refs/remotes/origin/||' | grep -v "$(printf "%s\nHEAD\n" "$local_branches")")"
     dbg "remote_branches:"
     dbg "$remote_branches"
 
     # merge all branches we want to display to the user
-    ordered_branches="$(printf "%s\n%s" "$ordered_wt_branches" "$remote_branches")"
+    ordered_branches="$(printf "%s\n%s\n%s\n" "$ordered_wt_branches" "$local_branches" "$remote_branches")"
     dbg "ordered_branches:"
     dbg "$ordered_branches"
     echo "$ordered_branches"

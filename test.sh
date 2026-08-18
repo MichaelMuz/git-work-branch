@@ -123,7 +123,7 @@ create_worktree() {
     dbg "create worktree with $branch_name"
 
     expected_wt_dir="$expected_repo1_worktree_home"/"$branch_name"
-    created_wt_dir=$(git_work_branch s "$branch_name")
+    created_wt_dir="$(git_work_branch s "$branch_name")" || return # if we fail we don't need to do checks and assertions
     test "$created_wt_dir" = "$expected_wt_dir" || exit_with "expected created wt at $expected_wt_dir but got $created_wt_dir"
     cd "$created_wt_dir" || exit_with "could not move to created first worktree dir" # as the tool wants us to do
     actual_branch="$(branch --show-current)"
@@ -155,6 +155,7 @@ touch "$fzf_out"
 
 fzf_chooses_new_but_unpopular_wt_branch() {
     cat >"$fzf_out"
+    dbg "fzf $* --filter new_but_unpopular_wt_branch"
     fzf "$@" --filter new_but_unpopular_wt_branch
 }
 
