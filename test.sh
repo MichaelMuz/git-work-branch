@@ -38,7 +38,7 @@ exit_with() {
 cd() {
     # shadows cd, a real config would have zoxide hook plugged into the shell directly
 
-    builtin cd "$@"
+    builtin cd "$@" || exit_with "could not cd into $*"
     zoxide add -- "$(pwd)"
 }
 
@@ -124,7 +124,7 @@ create_branch my_recentish_branch
 # recent local branch
 create_branch my_recent_branch
 
-expected_repo1_worktree_home="$WORKTREE_HOME"/repo1_remote
+expected_repo1_worktree_home="${WORKTREE_HOME}/$(basename "$root_repo1")"
 
 create_worktree() {
     # makes worktree by passing our tool s <branch>, assumes using repo1
@@ -137,9 +137,9 @@ create_worktree() {
     created_wt_dir="$(git_work_branch s "$branch_name")" || return # if we fail we don't need to do checks and assertions
     test "$created_wt_dir" = "$expected_wt_dir" || exit_with "expected created wt at $expected_wt_dir but got $created_wt_dir"
     cd "$created_wt_dir" || exit_with "could not move to created first worktree dir" # as the tool wants us to do
-    actual_branch="$(branch --show-current)"
-    test "$actual_branch" = created_wt_branch || exit_with "expected branch called created_wt_branch but got $actual_branch"
-    echo created_wt_dir
+    actual_branch="$(git branch --show-current)"
+    test "$actual_branch" = "$branch_name" || exit_with "expected branch called $branch_name but got $actual_branch"
+    echo "$created_wt_dir"
 }
 
 # 1a: try to create a branch new branch with arg
@@ -161,20 +161,26 @@ done
 
 cd "$root_repo1" || exit_with "could not cd into $root_repo1"
 
-fzf_out=$(mktmp)/fzf_out.txt
+fzf_out="$(mktemp -d)"/fzf_out.txt
 touch "$fzf_out"
 
-fzf_chooses_new_but_unpopular_wt_branch() {
-    cat >"$fzf_out"
-    dbg "fzf $* --filter new_but_unpopular_wt_branch"
-    fzf "$@" --filter new_but_unpopular_wt_branch
+with_mock_fzf_filter() {
+    export MOCK_FZF_FILTER="$1"
+    # shellcheck disable=SC2329 # it complains we never call the function
+    fzf() {
+        cat >"$fzf_out"
+        command fzf "$@" --filter "$MOCK_FZF_FILTER"
+    }
+    export -f fzf
+
+    ./git-work-branch.sh s
+
+    unset -n MOCK_FZF_FILTER
+    unset -f fzf # deletes fzf function so it is also no longer exported
 }
 
-export -f fzf=fzf_chooses_new_but_unpopular_wt_branch
-test "$(./git-work-branch.sh s)" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/new_but_unpopular_wt_branch
-unexport -f fzf
-
 # 2a: correct order piped into fzf
+test "$(with_mock_fzf_filter new_but_unpopular_wt_branch)" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/new_but_unpopular_wt_branch
 diff -q "$fzf_out" <<EOF || exit_with "diff dumped"
 older_but_popular_wt_branch
 newer_but_unpopular_wt_branch
@@ -186,16 +192,9 @@ old_remote_branch
 EOF
 
 # 3a: branch is already worktree
-fzf_chooses_newer_but_unpopular_wt_branch() {
-    cat >"$fzf_out"
-    fzf "$@" --filter fzf_chooses_newer_but_unpopular_wt_branch
-}
-
-export -f fzf=fzf_chooses_newer_but_unpopular_wt_branch
-to_cd="$(./git-work-branch.sh s)"
+to_cd="$(with_mock_fzf_filter fzf_chooses_newer_but_unpopular_wt_branch)"
 test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/fzf_chooses_newer_but_unpopular_wt_branch
 test "$(git -C "$to_cd" branch --show-current)" = fzf_chooses_newer_but_unpopular_wt_branch
-unexport -f fzf
 
 # 3b: branch is local but not worktree
 fzf_chooses_my_recentish() {
@@ -203,108 +202,65 @@ fzf_chooses_my_recentish() {
     fzf "$@" --filter my_recentish_branch
 }
 
-export -f fzf=fzf_chooses_my_recentish
-to_cd="$(./git-work-branch.sh s)"
+to_cd="$(with_mock_fzf_filter my_recentish_branch)"
 test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/my_recentish_branch
 test "$(git -C "$to_cd" branch --show-current)" = my_recentish_branch
-unexport -f fzf
 
 # 3c: branch is remote
-fzf_chooses_old_remote_branch() {
-    cat >"$fzf_out"
-    fzf "$@" --filter old_remote_branch
-}
-
 # 2b: can type in a branch that never existed and it gets created along with the worktree it needs
-export -f fzf=fzf_chooses_old_remote_branch
+to_cd="$(with_mock_fzf_filter old_remote_branch)"
 to_cd="$(./git-work-branch.sh s)"
 test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/old_remote_branch
 test "$(git -C "$to_cd" branch --show-current)" = old_remote_branch
-unexport -f fzf
 
 # 2b+3d: branch doesn't exist but we type it into fzf and it gets made along with its worktree
-fzf_chooses_new() {
-    cat >"$fzf_out"
-    fzf "$@" --filter brand_new_branch
-}
-
-export -f fzf=fzf_chooses_new
-to_cd="$(./git-work-branch.sh s)"
+to_cd="$(with_mock_fzf_filter brand_new_branch)"
 test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/brand_new_branch
 test "$(git -C "$to_cd" branch --show-current)" = brand_new_branch
-unexport -f fzf
 
 # 4a has already been demonstrated many times above bc if a branch didn't exist locallly then the worktree def didn't
 
 # 4b: ok to make worktree on existing dir if empty
 existing_but_empty="$WORKTREE_HOME"/"$expected_repo1_worktree_home"/existing_but_empty
 mkdir -p "$existing_but_empty"
-fzf_chooses_existing_but_empty() {
-    cat >"$fzf_out"
-    fzf "$@" --filter existing_but_empty
-}
-
-export -f fzf=fzf_chooses_existing_but_empty
-to_cd="$(./git-work-branch.sh s)"
+to_cd="$(with_mock_fzf_filter existing_but_empty)"
 test "$to_cd" = "$WORKTREE_HOME"/"$expected_repo1_worktree_home"/existing_but_empty
 test "$(git -C "$to_cd" branch --show-current)" = existing_but_empty
 unexport -f fzf
 
 # 4b: errors if we try to make worktree in occupied non-git dir
-existing_but_occupied="$WORKTREE_HOME"/"$expected_repo1_worktree_home"/existing_but_empty
+existing_but_occupied="$WORKTREE_HOME"/"$expected_repo1_worktree_home"/existing_but_occupied
 mkdir -p "$existing_but_occupied"
 touch "$existing_but_occupied/some_file.txt"
-fzf_chooses_existing_but_occupied() {
-    cat >"$fzf_out"
-    fzf "$@" --filter existing_but_occupied
-}
-
-export -f fzf=fzf_chooses_existing_but_occupied
-if out="$(./git-work-branch.sh s 2>&1)"; then
+if out="$(with_mock_fzf_filter existing_but_occupied)"; then
     exit_with "expected to fail on attempt to create worktree in occupied dir"
 elif [ "$out" == "$existing_but_occupied is not empty!" ]; then
     echo "got unexpected failure message :$out: when attempting to create in occupied dir"
 fi
-unexport -f fzf
 
 # 4c: error if dir has git but from a different repo
 existing_but_occupied_git_dir="$WORKTREE_HOME"/"$expected_repo1_worktree_home"/existing_but_empty
 mkdir -p "$existing_but_occupied_git_dir"
 touch "$existing_but_occupied_git_dir/some_file.txt"
-fzf_chooses_existing_but_occupied_git_dir() {
-    cat >"$fzf_out"
-    fzf "$@" --filter existing_but_occupied_git_dir
-}
-
-export -f fzf=fzf_chooses_existing_but_occupied_git_dir
-if out="$(./git-work-branch.sh s 2>&1)"; then
+if out="$(with_mock_fzf_filter existing_but_occupied 2>&1)"; then
     exit_with "expected to fail on attempt to create worktree in foreign repo"
 elif [ "$out" == "Foreign repo at $existing_but_occupied_git_dir" ]; then
     echo "got unexpected failure message :$out: when attempting to create in occupied dir"
 fi
-unexport -f fzf
 
 # 4d: errors if we try to make worktree in a dir that has a different branch from our repo in it - like if a user manually messed with branch in a worktree
 invaded_wt_dir="$WORKTREE_HOME"/"$expected_repo1_worktree_home"/branch_that_belongs
 mkdir -p "$invaded_wt_dir"
 git branch invader_branch
 git worktree add --quiet "$invaded_wt_dir" invader_branch
-
-fzf_chooses_branch_that_belongs() {
-    cat >"$fzf_out"
-    fzf "$@" --filter branch_that_belongs
-}
-
-export -f fzf=fzf_chooses_branch_that_belongs
-if out="$(./git-work-branch.sh s 2>&1)"; then
+if out="$(with_mock_fzf_filter branch_that_belongs 2>&1)"; then
     exit_with "expected to fail on attempt to create worktree in dir that has a different branch checked out already"
 elif [ "$out" == "existing branch invader_branch at $invaded_wt_dir cannot place branch_that_belongs" ]; then
     echo "got unexpected failure message :$out: when attempting to create in occupied dir"
 fi
-unexport -f fzf
 
 # 4e: try to check out a branch that is already checked out in a different worktree
-if out="$(./git-work-branch.sh s invader_branch 2>&1)"; then
+if out="$(with_mock_fzf_filter invader_branch 2>&1)"; then
     exit_with "expected to fail on attempt to create worktree with branch checked out in another worktree"
 elif [ "$out" == "fatal: 'both-zsh' is already used by worktree at \'$invaded_wt_dir\'" ]; then
     echo "got unexpected failure message :$out: when attempting to create in occupied dir"
