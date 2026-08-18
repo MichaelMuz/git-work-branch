@@ -122,18 +122,32 @@ gws() {
 
     # have fzf let them find or create if no arg was passed, fzf will exit 1 if typed but not chosen so we make it in that case
     branch="${branch:-$({ ranked_branches | fzf --print-query; } || { sed "s/^origin\///" | xargs -I{} git branch --quiet {} "$(remote_default_branch) -u origin/$(remote_default_branch) " && cat; })}"
+    dbg "settled: branch=$branch"
 
-    local main_repo_name new_worktree_path
-    main_repo_name="$(git worktree list | head -1 | awk '{print $1}' | xargs basename)" # first worktree is always shared checkout
+    local main_repo_path main_repo_name new_worktree_path
+    main_repo_path="$(git worktree list | head -1 | awk '{print $1}')" # first worktree is always shared checkout
+    main_repo_name="$(basename "$main_repo_path")"
     new_worktree_path="${WORKTREE_HOME}/${main_repo_name}/$(echo "$branch" | sed "s/\//-/")"
+    dbg "main_repo_name=$branch new_worktree_path=$new_worktree_path"
 
-    {
-        test -e "$new_worktree_path" && test "(ls -A $new_worktree_path | wc -l)" != "0" &&
-            { test "$(git -C "$new_worktree_path" rev-parse --is-inside-work-tree 2>/dev/null)" != "true" && exit_with "$new_worktree_path is not empty!"; } ||
-            { test "$(git worktree list 2>/dev/null | head -1 | awk '{print $1}')" = "$(git -C "$new_worktree_path" worktree list 2>/dev/null | head -1 | awk '{print $1}')" || exit_with "Foreign repo at $new_worktree_path"; } ||
-            { test "$(git -C "$new_worktree_path" branch --show-current)" = "$branch" || exit_with "existing branch $(git -C "$new_worktree_path" branch --show-current) at $new_worktree_path, cannot place $branch "; }
-        # create worktree if not exist, let git complain if that branch is already checked out elsewhere
-    } || git worktree add --quiet "$new_worktree_path" "$branch"
+    (
+        if [ -e "$new_worktree_path" ] && [ -n "$(ls -A "$new_worktree_path")" ]; then
+            if ! "$(git -C "$new_worktree_path" rev-parse --is-inside-work-tree 2>/dev/null)"; then
+                exit_with "$new_worktree_path is not empty!"
+            elif ! other_main_repo_path="$(git -C "$new_worktree_path" worktree list | head -1 | awk '{print $1}')"; then
+                exit_with "unexpected error getting other main repo path"
+            elif [ "$main_repo_path" = "$other_main_repo_path" ]; then
+                exit_with "Foreign repo at $new_worktree_path, main checkout is $other_main_repo_path"
+            elif ! other_repo_branch="$(git -C "$new_worktree_path" branch --show-current)"; then
+                exit_with "Unexpected failure to get current branch at $new_worktree_path"
+            elif [ "$other_repo_branch" != "$branch" ]; then
+                exit_with "existing branch $(git -C "$new_worktree_path" branch --show-current) at $new_worktree_path, cannot place $branch"
+            fi
+        else
+            # create worktree if not exist, let git complain if that branch is already checked out elsewhere
+            git worktree add --quiet "$new_worktree_path" "$branch"
+        fi
+    )
 
     # echo where caller should cd into and return successfully
     echo "$new_worktree_path"
