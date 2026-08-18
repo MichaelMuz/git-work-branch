@@ -171,8 +171,7 @@ with_mock_fzf_filter() {
     # shellcheck disable=SC2329 # it complains we never call the function
     fzf() {
         dbg "mock fzf called with MOCK_FZF_FILTER=$MOCK_FZF_FILTER"
-        cat >"$MOCK_FZF_OUT"
-        command fzf "$@" --filter "$MOCK_FZF_FILTER"
+        tee "$MOCK_FZF_OUT" | command fzf "$@" --filter "$MOCK_FZF_FILTER"
     }
     export -f fzf
 
