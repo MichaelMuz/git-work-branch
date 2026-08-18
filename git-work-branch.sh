@@ -154,12 +154,14 @@ gws() {
 }
 
 # this script technically takes the arg s, a, or r. Expect to be aliased as gws for convenience
-if [ "$1" = "s" ]; then
-    gws "$2"
+first_script_arg="$1"
+shift
+if [ "$first_script_arg" = "s" ]; then
+    gws "$*"
     exit 0
-elif [ "$1" = "a" ]; then
+elif [ "$first_script_arg" = "a" ]; then
     exit_with "Not implemented yet"
-elif [ "$1" = "r" ]; then
+elif [ "$first_script_arg" = "r" ]; then
     exit_with "Not implemented yet"
 else
     exit_with "Unrecognized command"

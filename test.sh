@@ -161,19 +161,21 @@ done
 
 cd "$root_repo1" || exit_with "could not cd into $root_repo1"
 
-fzf_out="$(mktemp -d)"/fzf_out.txt
-touch "$fzf_out"
+export MOCK_FZF_OUT
+MOCK_FZF_OUT="$(mktemp -d)"/fzf_out.txt
+touch "$MOCK_FZF_OUT"
 
 with_mock_fzf_filter() {
     export MOCK_FZF_FILTER="$1"
+    dbg "testing with MOCK_FZF_FILTER=$MOCK_FZF_FILTER"
     # shellcheck disable=SC2329 # it complains we never call the function
     fzf() {
-        cat >"$fzf_out"
+        cat >"$MOCK_FZF_OUT"
         command fzf "$@" --filter "$MOCK_FZF_FILTER"
     }
     export -f fzf
 
-    ./git-work-branch.sh s
+    git_work_branch s
 
     unset -n MOCK_FZF_FILTER
     unset -f fzf # deletes fzf function so it is also no longer exported
@@ -181,7 +183,7 @@ with_mock_fzf_filter() {
 
 # 2a: correct order piped into fzf
 test "$(with_mock_fzf_filter new_but_unpopular_wt_branch)" = "$expected_repo1_worktree_home"/new_but_unpopular_wt_branch
-diff -q "$fzf_out" <<EOF || exit_with "diff dumped"
+diff -q "$MOCK_FZF_OUT" <<EOF || exit_with "diff dumped"
 older_but_popular_wt_branch
 newer_but_unpopular_wt_branch
 my_recent_branch
@@ -197,11 +199,6 @@ test "$to_cd" = "$expected_repo1_worktree_home"/fzf_chooses_newer_but_unpopular_
 test "$(git -C "$to_cd" branch --show-current)" = fzf_chooses_newer_but_unpopular_wt_branch
 
 # 3b: branch is local but not worktree
-fzf_chooses_my_recentish() {
-    cat >"$fzf_out"
-    fzf "$@" --filter my_recentish_branch
-}
-
 to_cd="$(with_mock_fzf_filter my_recentish_branch)"
 test "$to_cd" = "$expected_repo1_worktree_home"/my_recentish_branch
 test "$(git -C "$to_cd" branch --show-current)" = my_recentish_branch
