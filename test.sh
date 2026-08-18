@@ -42,6 +42,17 @@ cd() {
     zoxide add -- "$(pwd)"
 }
 
+# git commit times only use seconds granularity so we need to mock it
+curr_time=$(date +%s)
+git() {
+    if [ "$1" = "commit" ]; then
+        GIT_COMMITTER_DATE=$((curr_time++)) command git "$@"
+    else
+        command git "$@"
+    fi
+}
+export -f git
+
 # we expect the script we are testing to be a sibling in the same dir as us
 git_work_branch_script_dir="$(dirname "$(realpath "$0")")"
 export dbgfile="$git_work_branch_script_dir/dbg.txt"
