@@ -170,6 +170,7 @@ with_mock_fzf_filter() {
     dbg "testing with MOCK_FZF_FILTER=$MOCK_FZF_FILTER"
     # shellcheck disable=SC2329 # it complains we never call the function
     fzf() {
+        dbg "mock fzf called with MOCK_FZF_FILTER=$MOCK_FZF_FILTER"
         cat >"$MOCK_FZF_OUT"
         command fzf "$@" --filter "$MOCK_FZF_FILTER"
     }
@@ -183,6 +184,7 @@ with_mock_fzf_filter() {
 
 # 2a: correct order piped into fzf
 test "$(with_mock_fzf_filter new_but_unpopular_wt_branch)" = "$expected_repo1_worktree_home"/new_but_unpopular_wt_branch
+dbg "DIFFING!"
 diff -q "$MOCK_FZF_OUT" <<EOF || exit_with "diff dumped"
 older_but_popular_wt_branch
 newer_but_unpopular_wt_branch

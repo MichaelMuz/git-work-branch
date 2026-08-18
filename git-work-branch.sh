@@ -112,16 +112,24 @@ ranked_branches() {
 gws() {
     # takes a branch arg, no arg prompts with fzf of all available branches in a worktree
 
-    local branch
+    local branch fzf_out
     branch="$1"
     dbg "will gws with $branch"
 
     # explicit arg cannot create so error if they passed it and we can't find it
     test -n "$branch" && { { git branch --list -a --format='%(refname:short)' "$branch" "origin/$branch" | wc -l | xargs -I{} test {} -gt 0; } || exit_with "explicit arg passed but branch not found - arg cannot create"; }
-    dbg "either not passed or already existed"
 
-    # have fzf let them find or create if no arg was passed, fzf will exit 1 if typed but not chosen so we make it in that case
-    branch="${branch:-$({ ranked_branches | fzf --print-query; } || { sed "s/^origin\///" | xargs -I{} git branch --quiet {} "$(remote_default_branch) -u origin/$(remote_default_branch) " && cat; })}"
+    if [ -z "$branch" ]; then
+        # have fzf let them find or create if no arg was passed, fzf will exit 1 if typed but not chosen so we make it in that case
+        if ! fzf_out=$(ranked_branches | fzf --print-query); then
+            echo "$fzf_out" | sed "s/^origin\///" | xargs -I{} git branch --quiet {} "$(remote_default_branch) -u origin/$(remote_default_branch)"
+            dbg "user used fzf to create new branch $branch"
+        fi
+        dbg "user used fzf to choose existing branch $branch"
+    else
+        dbg "found passed branch $branch"
+    fi
+
     dbg "settled: branch=$branch"
 
     local main_repo_path main_repo_name new_worktree_path
