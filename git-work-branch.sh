@@ -136,7 +136,7 @@ gws() {
 
     dbg "settled: branch=$branch"
 
-    local main_repo_path main_repo_name new_worktree_path
+    local main_repo_path main_repo_name new_worktree_path in_git_repo
     main_repo_path="$(git worktree list | head -1 | awk '{print $1}')" # first worktree is always shared checkout
     main_repo_name="$(basename "$main_repo_path")"
     new_worktree_path="${WORKTREE_HOME}/${main_repo_name}/$(echo "$branch" | sed "s/\//-/")"
@@ -144,7 +144,7 @@ gws() {
 
     (
         if [ -e "$new_worktree_path" ] && [ -n "$(ls -A "$new_worktree_path")" ]; then
-            if ! git -C "$new_worktree_path" rev-parse --is-inside-work-tree --quiet 2>/dev/null; then
+            if ! in_git_repo="$(git -C "$new_worktree_path" rev-parse --is-inside-work-tree --quiet 2>/dev/null)" || [ "$in_git_repo" != "true" ]; then
                 exit_with "$new_worktree_path is not empty!"
             elif ! other_main_repo_path="$(git -C "$new_worktree_path" worktree list | head -1 | awk '{print $1}')"; then
                 exit_with "unexpected error getting other main repo path"
@@ -155,11 +155,15 @@ gws() {
             elif [ "$other_repo_branch" != "$branch" ]; then
                 exit_with "existing branch $(git -C "$new_worktree_path" branch --show-current) at $new_worktree_path, cannot place $branch"
             fi
+            dbg "got past inner ifs"
         else
+            dbg "got into else"
             # create worktree if not exist, let git complain if that branch is already checked out elsewhere
             git worktree add --quiet "$new_worktree_path" "$branch"
         fi
     )
+
+    dbg "gonna echo new_worktree_path=$new_worktree_path"
 
     # echo where caller should cd into and return successfully
     echo "$new_worktree_path"
