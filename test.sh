@@ -161,9 +161,9 @@ done
 
 cd "$root_repo1" || exit_with "could not cd into $root_repo1"
 
-export MOCK_FZF_OUT
-MOCK_FZF_OUT="$(mktemp -d)"/fzf_out.txt
-touch "$MOCK_FZF_OUT"
+export MOCK_FZF_INPUT
+MOCK_FZF_INPUT="$(mktemp -d)"/fzf_input.txt
+touch "$MOCK_FZF_INPUT"
 
 with_mock_fzf_filter() {
     export MOCK_FZF_FILTER="$1"
@@ -171,7 +171,7 @@ with_mock_fzf_filter() {
     # shellcheck disable=SC2329 # it complains we never call the function
     fzf() {
         dbg "mock fzf called with MOCK_FZF_FILTER=$MOCK_FZF_FILTER"
-        tee "$MOCK_FZF_OUT" | command fzf "$@" --filter "$MOCK_FZF_FILTER"
+        tee "$MOCK_FZF_INPUT" | command fzf "$@" --filter "$MOCK_FZF_FILTER"
     }
     export -f fzf
 
@@ -184,7 +184,7 @@ with_mock_fzf_filter() {
 # 2a: correct order piped into fzf
 test "$(with_mock_fzf_filter new_but_unpopular_wt_branch)" = "$expected_repo1_worktree_home"/new_but_unpopular_wt_branch
 dbg "DIFFING!"
-diff -q "$MOCK_FZF_OUT" <<EOF || exit_with "diff dumped"
+diff -q "$MOCK_FZF_INPUT" <<EOF || exit_with "diff dumped"
 older_but_popular_wt_branch
 newer_but_unpopular_wt_branch
 my_recent_branch
