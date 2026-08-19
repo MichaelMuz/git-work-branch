@@ -42,6 +42,10 @@ set -eou pipefail
 #   - likely mostly useful to just do a global cleanup
 #   - will prob not delete branches at first
 #   - teleports to main checkout if deleted your dir
+#
+# Constraints:
+# - This is a personal tool so I just don't support some things like:
+#   - repo/worktree paths containing whitespace
 
 exit_with() {
     local msg="$1"
@@ -52,11 +56,12 @@ exit_with() {
 # set this in calling process to get a debug file
 dbgfile=${dbgfile:-""}
 dbg() {
-    test -n dbgfile && echo "$1" >>"$dbgfile" 2>&1
+    { test -n "$dbgfile" && echo "$1" >>"$dbgfile" 2>&1; } || true
 }
 
-WORKTREE_HOME=${WORKTREE_HOME:-"~/.worktrees"}
+WORKTREE_HOME=${WORKTREE_HOME:-"$HOME/.worktrees"}
 
+# TODO currently we assume a remote exists but it may not
 remote_default_branch() {
     # gets the default branch we should base off of
 
@@ -64,7 +69,7 @@ remote_default_branch() {
     local_default="$(git branch --list --format='%(refname:short)' main master | head -1)"
     remote_default="origin/${local_default}"
     {
-        test "$(wc -m <<<"${local_default}")" -gt 0 && git branch --list -r "${remote_default}" | wc -m | xargs -I{} test {} -gt 0
+        test -n "$local_default" && git branch --list -r "${remote_default}" | wc -l | xargs -I{} test {} -gt 0
     } || exit_with "unable to determine main branch" >&2
 
     echo "$remote_default"
@@ -81,7 +86,7 @@ ranked_branches() {
     dbg "$highest_ranked_wts"
 
     # get other worktree dirs
-    other_wts="$(git worktree list | awk '{print $1}' | grep -v "$highest_ranked_wts")"
+    other_wts="$(git worktree list | awk '{print $1}' | grep -Fxv "$highest_ranked_wts")"
     dbg "other_wts:"
     dbg "$other_wts"
 
@@ -100,11 +105,14 @@ ranked_branches() {
 
     ordered_branches=""
     for v in "$ordered_wt_branches" "$local_branches" "$remote_branches"; do
-        ordered_branches=$(printf "%s\n%s\n" "$ordered_branches" "$(grep -v "${ordered_branches:-" "}" <<<"$v")" | sed -n '/^[^[:space:]]/p')
+        ordered_branches=$(printf "%s\n%s\n" "$ordered_branches" "$(grep -Fxv "$ordered_branches" <<<"$v")" | sed -n '/^[^[:space:]]/p')
     done
-    # merge all branches we want to display to the user
+
+    ordered_branches=$(echo "$ordered_branches" | grep -Fxv "$(printf 'HEAD\n')")
+
     dbg "ordered_branches:"
     dbg "$ordered_branches"
+
     echo "$ordered_branches"
 
 }
@@ -112,8 +120,8 @@ ranked_branches() {
 gws() {
     # takes a branch arg, no arg prompts with fzf of all available branches in a worktree
 
-    local branch fzf_out
-    branch="$1"
+    local branch fzf_out status
+    branch="${1:-}"
     dbg "will gws with $branch"
 
     if [ -n "$branch" ]; then
@@ -124,11 +132,14 @@ gws() {
         # have fzf let them find or create if no arg was passed, fzf will exit 1 if typed but not chosen so we make it in that case
         # --print-query always returns the thing the user typed first line then the matches in next lines
         # we take tail line bc either 1 and they didn't match and we have the thing they typed or 0 they matched and what they typed is not relevant
-        if ! fzf_out=$(ranked_branches | fzf --print-query | tail -1 | sed 's/^origin\///'); then
+        if fzf_out=$(ranked_branches | fzf --print-query | tail -1 | sed 's/^origin\///'); then
+            dbg "user used fzf to choose existing branch $branch"
+        else
+            status=$? # our status will be that of fzf. Ctr-c makes fzf exit with 130 for example. Must be in else bc ! changes $?
+            if [ "$status" -gt 128 ]; then return "$status"; fi
+
             git branch --quiet "$fzf_out" "$(remote_default_branch)"
             dbg "user used fzf to create new branch $branch"
-        else
-            dbg "user used fzf to choose existing branch $branch"
         fi
         branch="$fzf_out"
     fi
@@ -138,8 +149,14 @@ gws() {
     local main_repo_path main_repo_name new_worktree_path in_git_repo
     main_repo_path="$(git worktree list | head -1 | awk '{print $1}')" # first worktree is always shared checkout
     main_repo_name="$(basename "$main_repo_path")"
-    new_worktree_path="${WORKTREE_HOME}/${main_repo_name}/$(echo "$branch" | sed "s/\//-/")"
+    new_worktree_path="${WORKTREE_HOME}/${main_repo_name}/$(echo "$branch" | sed 's/\//-/g')"
     dbg "main_repo_name=$branch new_worktree_path=$new_worktree_path"
+
+    if [ "origin/$branch" = "$(remote_default_branch)" ]; then
+        test "$(git -C "$main_repo_path" branch --show-current)" = "$branch" || { test -z "$(git -C "$main_repo_path" status --porcelain)" && git -C "$main_repo_path" checkout "$branch" --quiet; } || exit_with "default branch chosen but default checkout is on another branch!"
+        echo "$main_repo_path"
+        return 0
+    fi
 
     (
         if [ -e "$new_worktree_path" ] && [ -n "$(ls -A "$new_worktree_path")" ]; then
@@ -168,11 +185,13 @@ gws() {
     echo "$new_worktree_path"
 }
 
+{ test "$#" -lt 1 || test "$#" -gt 2; } && exit_with "expected 1 <= args <= 2 but got $#: $*"
+
 # this script technically takes the arg s, a, or r. Expect to be aliased as gws for convenience
 first_script_arg="$1"
 shift
 if [ "$first_script_arg" = "s" ]; then
-    gws "$*"
+    gws "$@"
     exit 0
 elif [ "$first_script_arg" = "a" ]; then
     exit_with "Not implemented yet"

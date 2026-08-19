@@ -16,12 +16,20 @@
 # b. branch is already local but not worktree
 # c. branch is remote
 # d. branch doesn't exist
+# e. branches with slashes have slashes removed in worktreee dir not in branch name
 # 4. Worktree edgecases:
 # a. We create worktrees if they don't exist
 # b. We create worktrees if the dir collides with an empty non-git dir
 # c. We error if that dir is a git dir but not this git repo
 # d. We error if that dir is on a different branch at the moment
 # e. We error if that branch is already checked out in a different worktree
+# 5. Process behavior:
+# a. Debug logging is optional
+# b. Cancelling fzf propagates its status and we do nothing after. No branch/worktree creation or switching
+# 6. Main checkout behavior:
+# a. Selecting main while it is already checked out returns the main checkout
+# b. Selecting main while the main checkout is on another clean branch switches it back
+# c. Selecting main while the main checkout is on another dirty branch errors without switching
 
 set -eou pipefail
 
@@ -153,6 +161,12 @@ fi
 older_but_popular_wt="$(create_worktree old_but_popular_wt_branch)"
 create_worktree new_but_unpopular_wt_branch >/dev/null
 
+# 5a: debug logging is optional
+test "$(
+    unset dbgfile
+    git_work_branch s old_but_popular_wt_branch
+)" = "$expected_repo1_worktree_home"/old_but_popular_wt_branch
+
 # make zoxide see that the new worktree dir is popular
 for _ in {1..5}; do
     cd "$root_repo1" || exit_with "could not cd into $root_repo1"
@@ -168,18 +182,27 @@ touch "$MOCK_FZF_INPUT"
 with_mock_fzf_filter() {
     local fin_status
     export MOCK_FZF_FILTER="$1"
+    export MOCK_FZF_STATUS="${2:-}"
     dbg "testing with MOCK_FZF_FILTER=$MOCK_FZF_FILTER"
     # shellcheck disable=SC2329 # it complains we never call the function
     fzf() {
+        local fzf_status
         dbg "mock fzf called with MOCK_FZF_FILTER=$MOCK_FZF_FILTER"
         tee "$MOCK_FZF_INPUT" | command fzf "$@" --filter "$MOCK_FZF_FILTER"
+        fzf_status=$?
+
+        if [ -n "$MOCK_FZF_STATUS" ]; then
+            return "$MOCK_FZF_STATUS"
+        fi
+
+        return "$fzf_status"
     }
     export -f fzf
 
     git_work_branch s
     fin_status=$?
 
-    unset -n MOCK_FZF_FILTER
+    unset -n MOCK_FZF_FILTER MOCK_FZF_STATUS
     unset -f fzf # deletes fzf function so it is also no longer exported
 
     return $fin_status
@@ -218,6 +241,13 @@ test "$(git -C "$to_cd" branch --show-current)" = old_remote_branch
 to_cd="$(with_mock_fzf_filter brand_new_branch)"
 test "$to_cd" = "$expected_repo1_worktree_home"/brand_new_branch
 test "$(git -C "$to_cd" branch --show-current)" = brand_new_branch
+
+# 3e: branches with slashes have slashes removed in worktreee dir not in branch name
+slash_branch=feature/topic
+git branch "$slash_branch"
+to_cd="$(git_work_branch s "$slash_branch")"
+test "$to_cd" = "$expected_repo1_worktree_home"/feature-topic
+test "$(git -C "$to_cd" branch --show-current)" = "$slash_branch"
 
 # 4a has already been demonstrated many times above bc if a branch didn't exist locallly then the worktree def didn't
 
@@ -270,3 +300,38 @@ if out="$(with_mock_fzf_filter invader_branch 2>&1)"; then
 elif [ "$out" != "fatal: 'invader_branch' is already used by worktree at '$invaded_wt_dir'" ]; then
     exit_with "got unexpected failure message :$out: when attempting to create in occupied dir"
 fi
+
+# 5b: cancelling fzf stops our process and propagates its status
+cancelled_branch=cancelled_branch
+if out="$(with_mock_fzf_filter "$cancelled_branch" 130 2>&1)"; then
+    exit_with "expected cancelling fzf to fail"
+elif [ "$?" -ne 130 ]; then
+    exit_with "expected cancelling fzf to return 130"
+fi
+test -z "$(git branch --list "$cancelled_branch")" || exit_with "cancelling fzf unexpectedly created $cancelled_branch"
+test ! -e "$expected_repo1_worktree_home/$cancelled_branch" || exit_with "cancelling fzf unexpectedly created a worktree for $cancelled_branch"
+
+# 6a: selecting main gets us root checkout
+to_cd="$(git_work_branch s main)"
+test "$to_cd" = "$root_repo1"
+test "$(git -C "$root_repo1" branch --show-current)" = main
+
+# 6b: selecting main switches branches if root is clean
+git checkout -b clean_main_checkout_branch --quiet
+to_cd="$(git_work_branch s main)"
+test "$to_cd" = "$root_repo1"
+test "$(git -C "$root_repo1" branch --show-current)" = main
+
+# 6c: selecting main fails if root repo is at different branch and is dirty
+git checkout -b dirty_main_checkout_branch --quiet
+dirty_main_checkout_file="$root_repo1"/dirty_main_checkout_file.txt
+touch "$dirty_main_checkout_file"
+if out="$(git_work_branch s main 2>&1)"; then
+    exit_with "expected selecting main to fail when the main checkout is on another dirty branch"
+elif [ "$out" != "default branch chosen but default checkout is on another branch!" ]; then
+    exit_with "got unexpected failure message :$out: when selecting main from another dirty branch"
+fi
+test "$(git -C "$root_repo1" branch --show-current)" = dirty_main_checkout_branch
+test -e "$dirty_main_checkout_file" || exit_with "dirty main checkout file unexpectedly disappeared"
+rm "$dirty_main_checkout_file"
+git checkout main --quiet
