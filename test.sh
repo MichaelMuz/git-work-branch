@@ -223,7 +223,6 @@ mkdir -p "$existing_but_empty"
 to_cd="$(with_mock_fzf_filter existing_but_empty)"
 test "$to_cd" = "$expected_repo1_worktree_home"/existing_but_empty
 test "$(git -C "$to_cd" branch --show-current)" = existing_but_empty
-unexport -f fzf
 
 # 4b: errors if we try to make worktree in occupied non-git dir
 existing_but_occupied="$expected_repo1_worktree_home"/existing_but_occupied

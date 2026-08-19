@@ -112,7 +112,7 @@ ranked_branches() {
 gws() {
     # takes a branch arg, no arg prompts with fzf of all available branches in a worktree
 
-    local branch fzf_out rnk_brs
+    local branch fzf_out
     branch="$1"
     dbg "will gws with $branch"
 
@@ -124,14 +124,13 @@ gws() {
         # have fzf let them find or create if no arg was passed, fzf will exit 1 if typed but not chosen so we make it in that case
         # --print-query always returns the thing the user typed first line then the matches in next lines
         # we take tail line bc either 1 and they didn't match and we have the thing they typed or 0 they matched and what they typed is not relevant
-        rnk_brs="$(ranked_branches)"
-        if ! fzf_out=$(echo "$rnk_brs" | fzf --print-query | tail -1); then
-            echo "$fzf_out" | sed 's/^origin\///' | xargs -I{} git branch --quiet {} "$(remote_default_branch)"
+        if ! fzf_out=$(ranked_branches | fzf --print-query | tail -1 | sed 's/^origin\///'); then
+            git branch --quiet "$fzf_out" "$(remote_default_branch)"
             dbg "user used fzf to create new branch $branch"
         else
-            branch=$(sed 's/^origin\///' <(printf "%s" "$fzf_out"))
             dbg "user used fzf to choose existing branch $branch"
         fi
+        branch="$fzf_out"
     fi
 
     dbg "settled: branch=$branch"
