@@ -268,10 +268,5 @@ fi
 if out="$(with_mock_fzf_filter invader_branch 2>&1)"; then
     exit_with "expected to fail on attempt to create worktree with branch checked out in another worktree"
 elif [ "$out" != "fatal: 'invader_branch' is already used by worktree at '$invaded_wt_dir'" ]; then
-    dbg "expected:"
-    dbg ":fatal: 'invader_branch' is already used by worktree at '$invaded_wt_dir':"
-    dbg "actual:"
-    dbg ":$out:"
-    dbg "this fourth"
     exit_with "got unexpected failure message :$out: when attempting to create in occupied dir"
 fi
