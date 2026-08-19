@@ -76,7 +76,7 @@ ranked_branches() {
     local highest_ranked_wts other_wts ordered_wt_branches local_branches remote_branches ordered_branches
 
     # get highest ranked zoxide dirs that are also this repos worktrees
-    highest_ranked_wts="$(zoxide query -l | grep -E "$(git worktree list | awk '{print $1}' | xargs | sed 's/ /|/')")"
+    highest_ranked_wts="$(zoxide query -l | grep "$(git worktree list | awk '{print $1}')")"
     dbg "highest_ranked_wts:"
     dbg "$highest_ranked_wts"
 
