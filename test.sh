@@ -166,6 +166,7 @@ MOCK_FZF_INPUT="$(mktemp -d)"/fzf_input.txt
 touch "$MOCK_FZF_INPUT"
 
 with_mock_fzf_filter() {
+    local fin_status
     export MOCK_FZF_FILTER="$1"
     dbg "testing with MOCK_FZF_FILTER=$MOCK_FZF_FILTER"
     # shellcheck disable=SC2329 # it complains we never call the function
@@ -176,9 +177,12 @@ with_mock_fzf_filter() {
     export -f fzf
 
     git_work_branch s
+    fin_status=$?
 
     unset -n MOCK_FZF_FILTER
     unset -f fzf # deletes fzf function so it is also no longer exported
+
+    return $fin_status
 }
 
 # 2a: correct order piped into fzf
@@ -228,20 +232,25 @@ test "$(git -C "$to_cd" branch --show-current)" = existing_but_empty
 existing_but_occupied="$expected_repo1_worktree_home"/existing_but_occupied
 mkdir -p "$existing_but_occupied"
 touch "$existing_but_occupied/some_file.txt"
-if out="$(with_mock_fzf_filter existing_but_occupied)"; then
+if out="$(with_mock_fzf_filter existing_but_occupied 2>&1)"; then
     exit_with "expected to fail on attempt to create worktree in occupied dir"
-elif [ "$out" == "$existing_but_occupied is not empty!" ]; then
-    echo "got unexpected failure message :$out: when attempting to create in occupied dir"
+elif [ "$out" != "$existing_but_occupied is not empty!" ]; then
+    exit_with "got unexpected failure message :$out: when attempting to create in occupied dir"
 fi
 
 # 4c: error if dir has git but from a different repo
-existing_but_occupied_git_dir="$expected_repo1_worktree_home"/existing_but_empty
+existing_but_occupied_git_dir="$expected_repo1_worktree_home"/existing_but_occupied_git_dir
 mkdir -p "$existing_but_occupied_git_dir"
+(
+    cd "$existing_but_occupied_git_dir"
+    touch some_file.txt
+    git init --quiet && git add some_file.txt && git commit -m "first" --quiet
+)
 touch "$existing_but_occupied_git_dir/some_file.txt"
-if out="$(with_mock_fzf_filter existing_but_occupied 2>&1)"; then
+if out="$(with_mock_fzf_filter existing_but_occupied_git_dir 2>&1)"; then
     exit_with "expected to fail on attempt to create worktree in foreign repo"
-elif [ "$out" == "Foreign repo at $existing_but_occupied_git_dir" ]; then
-    echo "got unexpected failure message :$out: when attempting to create in occupied dir"
+elif [ "$out" != "Foreign repo at $existing_but_occupied_git_dir" ]; then
+    exit_with "got unexpected failure message :$out: when attempting to create in occupied dir"
 fi
 
 # 4d: errors if we try to make worktree in a dir that has a different branch from our repo in it - like if a user manually messed with branch in a worktree
@@ -251,13 +260,18 @@ git branch invader_branch
 git worktree add --quiet "$invaded_wt_dir" invader_branch
 if out="$(with_mock_fzf_filter branch_that_belongs 2>&1)"; then
     exit_with "expected to fail on attempt to create worktree in dir that has a different branch checked out already"
-elif [ "$out" == "existing branch invader_branch at $invaded_wt_dir cannot place branch_that_belongs" ]; then
-    echo "got unexpected failure message :$out: when attempting to create in occupied dir"
+elif [ "$out" != "existing branch invader_branch at $invaded_wt_dir, cannot place branch_that_belongs" ]; then
+    exit_with "got unexpected failure message :$out: when attempting to create in occupied dir"
 fi
 
 # 4e: try to check out a branch that is already checked out in a different worktree
 if out="$(with_mock_fzf_filter invader_branch 2>&1)"; then
     exit_with "expected to fail on attempt to create worktree with branch checked out in another worktree"
-elif [ "$out" == "fatal: 'both-zsh' is already used by worktree at \'$invaded_wt_dir\'" ]; then
-    echo "got unexpected failure message :$out: when attempting to create in occupied dir"
+elif [ "$out" != "fatal: 'invader_branch' is already used by worktree at '$invaded_wt_dir'" ]; then
+    dbg "expected:"
+    dbg ":fatal: 'invader_branch' is already used by worktree at '$invaded_wt_dir':"
+    dbg "actual:"
+    dbg ":$out:"
+    dbg "this fourth"
+    exit_with "got unexpected failure message :$out: when attempting to create in occupied dir"
 fi

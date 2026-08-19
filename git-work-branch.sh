@@ -148,7 +148,7 @@ gws() {
             elif ! other_main_repo_path="$(git -C "$new_worktree_path" worktree list | head -1 | awk '{print $1}')"; then
                 exit_with "unexpected error getting other main repo path"
             elif [ "$main_repo_path" != "$other_main_repo_path" ]; then
-                exit_with "Foreign repo at $new_worktree_path, main checkout is $other_main_repo_path"
+                exit_with "Foreign repo at $new_worktree_path"
             elif ! other_repo_branch="$(git -C "$new_worktree_path" branch --show-current)"; then
                 exit_with "Unexpected failure to get current branch at $new_worktree_path"
             elif [ "$other_repo_branch" != "$branch" ]; then
