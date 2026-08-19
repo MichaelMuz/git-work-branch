@@ -193,12 +193,11 @@ my_older_branch
 newer_remote_branch
 old_remote_branch
 EOF
-dbg "past diff"
 
 # 3a: branch is already worktree
-to_cd="$(with_mock_fzf_filter fzf_chooses_newer_but_unpopular_wt_branch)"
-test "$to_cd" = "$expected_repo1_worktree_home"/fzf_chooses_newer_but_unpopular_wt_branch
-test "$(git -C "$to_cd" branch --show-current)" = fzf_chooses_newer_but_unpopular_wt_branch
+to_cd="$(with_mock_fzf_filter new_but_unpopular_wt_branch)"
+test "$to_cd" = "$expected_repo1_worktree_home"/new_but_unpopular_wt_branch
+test "$(git -C "$to_cd" branch --show-current)" = new_but_unpopular_wt_branch
 
 # 3b: branch is local but not worktree
 to_cd="$(with_mock_fzf_filter my_recentish_branch)"
@@ -208,7 +207,6 @@ test "$(git -C "$to_cd" branch --show-current)" = my_recentish_branch
 # 3c: branch is remote
 # 2b: can type in a branch that never existed and it gets created along with the worktree it needs
 to_cd="$(with_mock_fzf_filter old_remote_branch)"
-to_cd="$(./git-work-branch.sh s)"
 test "$to_cd" = "$expected_repo1_worktree_home"/old_remote_branch
 test "$(git -C "$to_cd" branch --show-current)" = old_remote_branch
 

@@ -126,7 +126,7 @@ gws() {
         # we take tail line bc either 1 and they didn't match and we have the thing they typed or 0 they matched and what they typed is not relevant
         rnk_brs="$(ranked_branches)"
         if ! fzf_out=$(echo "$rnk_brs" | fzf --print-query | tail -1); then
-            echo "$fzf_out" | sed 's/^origin\///' | xargs -I{} git branch --quiet {} "$(remote_default_branch) -u origin/$(remote_default_branch)"
+            echo "$fzf_out" | sed 's/^origin\///' | xargs -I{} git branch --quiet {} "$(remote_default_branch)"
             dbg "user used fzf to create new branch $branch"
         else
             branch=$(sed 's/^origin\///' <(printf "%s" "$fzf_out"))
