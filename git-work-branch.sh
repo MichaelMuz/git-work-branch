@@ -43,9 +43,13 @@ set -eou pipefail
 #   - will prob not delete branches at first
 #   - teleports to main checkout if deleted your dir
 #
+# Misc practicality:
+# - Existing scattered worktrees annoyed me when I started using this tool so now if my branch is in some random worktree I just move it to where it should be
+#
 # Constraints:
 # - This is a personal tool so I just don't support some things like:
 #   - repo/worktree paths containing whitespace
+#   - moving worktrees that have submodules
 
 exit_with() {
     local msg="$1"
@@ -171,9 +175,10 @@ gws() {
             elif [ "$other_repo_branch" != "$branch" ]; then
                 exit_with "existing branch $(git -C "$new_worktree_path" branch --show-current) at $new_worktree_path, cannot place $branch"
             fi
-            dbg "got past inner ifs"
+        elif existing_wt="$(git for-each-ref --format '%(worktreepath)' refs/heads/"$branch")" && [ -n "$existing_wt" ]; then
+            # TODO don't have unit tests for this yet
+            git worktree move "$existing_wt" "$new_worktree_path"
         else
-            dbg "got into else"
             # create worktree if not exist, let git complain if that branch is already checked out elsewhere
             git worktree add --quiet "$new_worktree_path" "$branch"
         fi
