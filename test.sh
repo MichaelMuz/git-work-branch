@@ -295,10 +295,10 @@ elif [ "$out" != "existing branch invader_branch at $invaded_wt_dir, cannot plac
 fi
 
 # 4e: try to check out a branch that is already checked out in a different worktree
-if out="$(with_mock_fzf_filter invader_branch 2>&1)"; then
-    exit_with "expected to fail on attempt to create worktree with branch checked out in another worktree"
-elif [ "$out" != "fatal: 'invader_branch' is already used by worktree at '$invaded_wt_dir'" ]; then
-    exit_with "got unexpected failure message :$out: when attempting to create in occupied dir"
+if ! to_cd="$(with_mock_fzf_filter invader_branch 2>&1)"; then
+    exit_with "invader branch relocation failed"
+elif [ "$to_cd" != "${expected_repo1_worktree_home}/invader_branch" ] || [ "$(git -C "$to_cd" branch --show-current)" != "invader_branch" ]; then
+    exit_with "expected to have invader branch worktree relocated"
 fi
 
 # 5b: cancelling fzf stops our process and propagates its status

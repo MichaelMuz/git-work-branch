@@ -162,8 +162,10 @@ gws() {
         return 0
     fi
 
+    mkdir -p "$new_worktree_path"
+
     (
-        if [ -e "$new_worktree_path" ] && [ -n "$(ls -A "$new_worktree_path")" ]; then
+        if [ -n "$(ls -A "$new_worktree_path")" ]; then
             if ! in_git_repo="$(git -C "$new_worktree_path" rev-parse --is-inside-work-tree --quiet 2>/dev/null)" || [ "$in_git_repo" != "true" ]; then
                 exit_with "$new_worktree_path is not empty!"
             elif ! other_main_repo_path="$(git -C "$new_worktree_path" worktree list | head -1 | awk '{print $1}')"; then
@@ -176,7 +178,7 @@ gws() {
                 exit_with "existing branch $(git -C "$new_worktree_path" branch --show-current) at $new_worktree_path, cannot place $branch"
             fi
         elif existing_wt="$(git for-each-ref --format '%(worktreepath)' refs/heads/"$branch")" && [ -n "$existing_wt" ]; then
-            # TODO don't have unit tests for this yet
+            rmdir "$new_worktree_path" # rmdir fails on non-empty so safe and we know it is empty here. Needed bc below move command will keep mv semantics an nest itself if this exists
             git worktree move "$existing_wt" "$new_worktree_path"
         else
             # create worktree if not exist, let git complain if that branch is already checked out elsewhere
