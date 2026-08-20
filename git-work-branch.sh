@@ -150,7 +150,7 @@ gws() {
 
     dbg "settled: branch=$branch"
 
-    local main_repo_path main_repo_name new_worktree_path in_git_repo
+    local main_repo_path main_repo_name new_worktree_path in_git_repo existing_wt
     main_repo_path="$(git worktree list | head -1 | awk '{print $1}')" # first worktree is always shared checkout
     main_repo_name="$(basename "$main_repo_path")"
     new_worktree_path="${WORKTREE_HOME}/${main_repo_name}/$(echo "$branch" | sed 's/\//-/g')"
