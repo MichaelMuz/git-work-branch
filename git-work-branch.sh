@@ -178,7 +178,7 @@ gws() {
                 exit_with "existing branch $(git -C "$new_worktree_path" branch --show-current) at $new_worktree_path, cannot place $branch"
             fi
         elif existing_wt="$(git for-each-ref --format '%(worktreepath)' refs/heads/"$branch")" && [ -n "$existing_wt" ]; then
-            rmdir "$new_worktree_path" # rmdir fails on non-empty so safe and we know it is empty here. Needed bc below move command will keep mv semantics an nest itself if this exists
+            rmdir "$new_worktree_path" # rmdir fails on non-empty so safe and we know it is empty here. Needed bc below move command will keep mv semantics and nest itself if this exists
             git worktree move "$existing_wt" "$new_worktree_path"
         else
             # create worktree if not exist, let git complain if that branch is already checked out elsewhere
