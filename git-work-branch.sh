@@ -160,6 +160,7 @@ gws() {
     if [ "origin/$branch" = "$(remote_default_branch)" ]; then
         test "$(git -C "$main_repo_path" branch --show-current)" = "$branch" || { test -z "$(git -C "$main_repo_path" status --porcelain)" && git -C "$main_repo_path" checkout "$branch" --quiet; } || exit_with "default branch chosen but default checkout is on another branch!"
         echo "$main_repo_path"
+        gwp "$main_repo_path" </dev/null >>"${dbgfile:-/dev/null}" 2>&1 & # if I repeat this a third time I will make a helper func
         return 0
     fi
 
@@ -189,6 +190,7 @@ gws() {
 
     dbg "gonna echo new_worktree_path=$new_worktree_path"
 
+    gwp "$new_worktree_path" </dev/null >>"${dbgfile:-/dev/null}" 2>&1 &
     # echo where caller should cd into and return successfully
     echo "$new_worktree_path"
 }
@@ -209,10 +211,12 @@ gwp() {
         return 0
     }
 
-    local current_worktree branches_to_prune worktrees_to_prune wt
+    local current_worktree extra_excluded_wt excluded_wts branches_to_prune worktrees_to_prune wt
     current_worktree="$(git rev-parse --show-toplevel 2>/dev/null)" || true
-    branches_to_prune="$(git remote prune --dry-run origin | awk '/\[would prune\]/ { print $NF }' | sed 's|^origin/|refs/heads/|')" || dbg "failed to get branches to prune"
-    worktrees_to_prune="$(xargs <<<"$branches_to_prune" -rn1 git for-each-ref --format '%(worktreepath)' | sed '/^[[:space:]]*$/d' | { grep -Fxv "${current_worktree}" || true; })" # exclude cwd
+    extra_excluded_wt="$1"
+    excluded_wts="$(printf '%s\n%s' "$extra_excluded_wt" "$current_worktree")"
+    branches_to_prune="$(git remote prune --dry-run origin | awk '/\[would prune\]/ { print $NF }' | sed 's|^origin/|refs/heads/|')"
+    worktrees_to_prune="$(xargs <<<"$branches_to_prune" -rn1 git for-each-ref --format '%(worktreepath)' | sed '/^[[:space:]]*$/d' | { grep -Fxv "${excluded_wts}" || true; })"
     for wt in $worktrees_to_prune; do
         git worktree remove "$wt" || dbg "couldn't remove $wt despite being ready to prune"
     done
@@ -226,8 +230,6 @@ shift
 if [ "$first_script_arg" = "s" ]; then
     gws "$@"
     exit 0
-elif [ "$first_script_arg" = "p" ]; then
-    gwp "$@"
 elif [ "$first_script_arg" = "a" ]; then
     exit_with "Not implemented yet"
 elif [ "$first_script_arg" = "r" ]; then

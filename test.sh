@@ -37,6 +37,8 @@ set -eou pipefail
 # set -x
 # PS4='T${LINENO}: '
 
+export GWP_DISABLED="true"
+
 exit_with() {
     local msg="$1"
     echo "$msg" >&2

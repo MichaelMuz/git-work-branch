@@ -49,6 +49,7 @@ To override where the worktrees live, in your shell config: `export WORKTREE_HOM
 1. run `gws <branch-name>` to switch to an existing branch in a dedicated worktree
 2. run `gws` for interactive mode where you can fuzzy find intelligently sorted git branches or type in a new one to create a new branch
 3. selecting the main branch in any way will return you to the main checkout of the repo rather than a worktree
+4. it will automatically try to clean up clean worktrees corresponding to branches that the remote would prune. `export GWP_DISABLED="true"` in your shell config to opt out of this behavior
 
 ## Staying up to date
 When you want to update run `git -C ~/.local/share/git-work-branch pull`
