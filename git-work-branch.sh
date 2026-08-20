@@ -42,6 +42,7 @@ set -eou pipefail
 #   - likely mostly useful to just do a global cleanup
 #   - will prob not delete branches at first
 #   - teleports to main checkout if deleted your dir
+#   - in the future we can do something fancy like kick off backing gwp on each invocation in a background process but for now we don't delete wt if in cwd
 #
 # Misc practicality:
 # - Existing scattered worktrees annoyed me when I started using this tool so now if my branch is in some random worktree I just move it to where it should be
@@ -192,6 +193,31 @@ gws() {
     echo "$new_worktree_path"
 }
 
+# TODO: for now we don't handle pruning worktrees of things that have already been pruned
+# TODO: should test this
+gwp() {
+    test -n "${GWP_DISABLED:-}" && {
+        dbg "found GWP_DISABLED=$GWP_DISABLED which is not empty, exiting"
+        return 0
+    }
+    git rev-parse --is-inside-work-tree --quiet 2>/dev/null || {
+        dbg "gwp spawned in non repo $(pwd)"
+        return 0
+    }
+    git worktree prune || {
+        dbg "git worktree prune failed"
+        return 0
+    }
+
+    local current_worktree branches_to_prune worktrees_to_prune wt
+    current_worktree="$(git rev-parse --show-toplevel 2>/dev/null)" || true
+    branches_to_prune="$(git remote prune --dry-run origin | awk '/\[would prune\]/ { print $NF }' | sed 's|^origin/|refs/heads/|')" || dbg "failed to get branches to prune"
+    worktrees_to_prune="$(xargs <<<"$branches_to_prune" -rn1 git for-each-ref --format '%(worktreepath)' | sed '/^[[:space:]]*$/d' | { grep -Fxv "${current_worktree}" || true; })" # exclude cwd
+    for wt in $worktrees_to_prune; do
+        git worktree remove "$wt" || dbg "couldn't remove $wt despite being ready to prune"
+    done
+}
+
 { test "$#" -lt 1 || test "$#" -gt 2; } && exit_with "expected 1 <= args <= 2 but got $#: $*"
 
 # this script technically takes the arg s, a, or r. Expect to be aliased as gws for convenience
@@ -200,6 +226,8 @@ shift
 if [ "$first_script_arg" = "s" ]; then
     gws "$@"
     exit 0
+elif [ "$first_script_arg" = "p" ]; then
+    gwp "$@"
 elif [ "$first_script_arg" = "a" ]; then
     exit_with "Not implemented yet"
 elif [ "$first_script_arg" = "r" ]; then
