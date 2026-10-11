@@ -103,14 +103,18 @@ ranked_branches() {
     local_branches="$(git for-each-ref --sort='refname:short' --sort '-committerdate' --format='%(refname:short)' refs/heads)"
     dbg "local_branches:"
     dbg "$local_branches"
-    # sort remote the same but dedup against local branches
+
+    # sort remote the same as local branches
     remote_branches="$(git for-each-ref --sort='refname:short' --sort '-committerdate' --format='%(refname)' refs/remotes | sed 's|refs/remotes/origin/||')"
     dbg "remote_branches:"
     dbg "$remote_branches"
 
+    coalesce=("$ordered_wt_branches" "$local_branches" "$remote_branches")
+    icons=("🌳" "🪵" "🛰️️")
+
     ordered_branches=""
-    for v in "$ordered_wt_branches" "$local_branches" "$remote_branches"; do
-        ordered_branches=$(printf "%s\n%s\n" "$ordered_branches" "$(grep -Fxv "$ordered_branches" <<<"$v")" | sed -n '/^[^[:space:]]/p')
+    for i in "${!coalesce[@]}"; do
+        ordered_branches=$(printf "%s\n%s\n" "$ordered_branches" "$(grep -Fxv "$(sed 's/^. //' <<<"$ordered_branches")" <<<"${coalesce[$i]}" | sed "s/^/${icons[$i]} /")" | sed -n '/^[^[:space:]]/p')
     done
 
     ordered_branches=$(echo "$ordered_branches" | grep -Fxv "$(printf 'HEAD\n')")
@@ -137,7 +141,7 @@ gws() {
         # have fzf let them find or create if no arg was passed, fzf will exit 1 if typed but not chosen so we make it in that case
         # --print-query always returns the thing the user typed first line then the matches in next lines
         # we take tail line bc either 1 and they didn't match and we have the thing they typed or 0 they matched and what they typed is not relevant
-        if fzf_out=$(ranked_branches | fzf --print-query | tail -1 | sed 's/^origin\///'); then
+        if fzf_out=$(ranked_branches | fzf --print-query | tail -1 | sed -e 's/^🌳 //' -e 's/^🪵 //' -e 's/^🛰️️ //' -e 's/^origin\///'); then
             dbg "user used fzf to choose existing branch $branch"
         else
             status=$? # our status will be that of fzf. Ctr-c makes fzf exit with 130 for example. Must be in else bc ! changes $?

@@ -213,14 +213,14 @@ with_mock_fzf_filter() {
 # 2a: correct order piped into fzf
 test "$(with_mock_fzf_filter new_but_unpopular_wt_branch)" = "$expected_repo1_worktree_home"/new_but_unpopular_wt_branch
 diff -q "$MOCK_FZF_INPUT" - <<EOF || exit_with "diff dumped"
-main
-old_but_popular_wt_branch
-new_but_unpopular_wt_branch
-my_recent_branch
-my_recentish_branch
-my_older_branch
-newer_remote_branch
-old_remote_branch
+🌳 main
+🌳 old_but_popular_wt_branch
+🌳 new_but_unpopular_wt_branch
+🪵 my_recent_branch
+🪵 my_recentish_branch
+🪵 my_older_branch
+🛰️️ newer_remote_branch
+🛰️️ old_remote_branch
 EOF
 
 # 3a: branch is already worktree
