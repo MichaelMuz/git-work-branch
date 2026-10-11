@@ -114,6 +114,7 @@ ranked_branches() {
 
     ordered_branches=""
     for i in "${!coalesce[@]}"; do
+        # shellcheck disable=SC2001 # need regex and per line from sed, don't want to use {var//pattern/replacement}
         ordered_branches=$(printf "%s\n%s\n" "$ordered_branches" "$(grep -Fxv "$(sed 's/^. //' <<<"$ordered_branches")" <<<"${coalesce[$i]}" | sed "s/^/${icons[$i]} /")" | sed -n '/^[^[:space:]]/p')
     done
 
